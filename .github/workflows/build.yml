@@ -31,7 +31,7 @@ jobs:
             exit 1
           fi
           echo "::notice::ENGINE-TEST: $(grep -h 'engine tests:' engine-test.log | head -n 1)"
-          echo "::notice::CPU: $(grep -h '^CPU:' engine-test.log | head -n 1)"
+          echo "::notice::CPU: $(grep -ho 'CPU: .*' engine-test.log | head -n 1)"
           echo "::notice::MAPPER-TEST: $(grep -h 'mapper tests:' engine-test.log | head -n 1)"
           grep -q "mapper tests: .* checks passed" engine-test.log || { echo "::error::MAPPER-TEST: no pass line found"; exit 1; }
 
@@ -226,7 +226,8 @@ jobs:
           for id in $(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '.[] | select(.draft and (.name | startswith("Ogdoad test build"))) | .id'); do
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
           done
-          gh release create "test-build-${GITHUB_RUN_NUMBER}" Ogdoad-macOS.zip --draft --target "$GITHUB_SHA" \
+          ls window-pictures/*.png >/dev/null 2>&1 && ditto -c -k window-pictures Ogdoad-window-pictures.zip
+          gh release create "test-build-${GITHUB_RUN_NUMBER}" Ogdoad-macOS.zip $(ls Ogdoad-window-pictures.zip 2>/dev/null) --draft --target "$GITHUB_SHA" \
             --title "Ogdoad test build ${GITHUB_RUN_NUMBER} (${GITHUB_SHA::7})" \
             --notes "Same package as the Ogdoad-macOS artifact of this run. Draft: not public."
           echo "::notice::DRAFT-RELEASE: created test-build-${GITHUB_RUN_NUMBER}"
