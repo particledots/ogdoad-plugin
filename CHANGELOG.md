@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.2 (resizable window; not yet tested in Logic)
+## 0.2.2 (resizable window; tested in Logic by Bryn on 2026-11-19: working)
 
 - The window is resizable: drag the corner at the bottom right. It scales from 80% to 200% of the normal size
   (624 x 376 to 1560 x 940) with its proportions locked; knobs, lights, strips, traces and text all grow together.

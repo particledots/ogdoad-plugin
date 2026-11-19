@@ -5,9 +5,9 @@ the bottom, plus sixteen more outputs worked out from them (Ogdoad Ex), all sent
 feel of an eight-LFO Eurorack module and its expander. All code is our own; it is not a port or copy of anything, and
 it is not affiliated with any module maker.
 
-Status: **version 0.2.2 (resizable window) built, not yet tested in Logic.** Version 0.2.1 (brighter lights and the
-Lights | Waves button) was tested in Logic by Bryn on 2026-11-19 and works; version 0.2.0 (milestone 2: Ogdoad Ex) was tested
-in Logic on both Macs on 2026-11-19 and works. Versions 0.2.1 and 0.2.2 change only the window, not one MIDI message.
+Status: **version 0.2.2 (resizable window, with the brighter lights and Lights | Waves button of 0.2.1) tested in Logic by Bryn on
+2026-11-19 and working.** Version 0.2.0 (milestone 2: Ogdoad Ex) was tested in Logic on both Macs on 2026-11-19 and works.
+Versions 0.2.1 and 0.2.2 change only the window, not one MIDI message.
 
 - **Rate** moves all eight together. At the centre LFO 1 runs at about 4.9 Hz and LFO 8 at one cycle in 19 s; each LFO
   is about 1.9 times slower than the one above, in uneven steps so they never lock together. Fully clockwise LFO 1 runs
