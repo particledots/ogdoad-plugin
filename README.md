@@ -4,7 +4,7 @@ An original AU / VST3 MIDI effect for Logic Pro: eight free-running triangle LFO
 the bottom, sent out as smooth MIDI CC. Inspired by the feel of an eight-LFO Eurorack module and its expander.
 All code is our own; it is not a port or copy of anything, and it is not affiliated with any module maker.
 
-Status: **milestone 1 (version 0.1.0, waiting for a test in Logic).**
+Status: **milestone 1 (version 0.1.0) tested in Logic on 2026-11-19 and working.** Milestone 2 (the Ogdoad Ex expander) is next.
 
 - **Rate** moves all eight together. At the centre LFO 1 runs at about 4.9 Hz and LFO 8 at one cycle in 19 s; each LFO
   is about 1.9 times slower than the one above, in uneven steps so they never lock together. Fully clockwise LFO 1 runs

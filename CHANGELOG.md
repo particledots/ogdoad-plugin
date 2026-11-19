@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (milestone 1, waiting for a test in Logic)
+## 0.1.0 (milestone 1, tested in Logic on 2026-11-19: working)
 
 - First build: AU + VST3 MIDI effect, universal (Apple Silicon + Intel), macOS 11 or newer, ad-hoc signed.
 - Eight free-running triangle LFOs sent as 14-bit CC (CC 20-27 coarse, 52-59 fine) on channel 16 (changeable).
