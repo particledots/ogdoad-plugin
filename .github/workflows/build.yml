@@ -168,7 +168,7 @@ jobs:
           cp auval.log Ogdoad-macOS/auval.log 2>/dev/null || true
           cp pluginval-AU.log pluginval-VST3.log Ogdoad-macOS/ 2>/dev/null || true
           cat > Ogdoad-macOS/INSTALL.txt <<'TXT'
-          OGDOAD 0.2.0: install and set up
+          OGDOAD 0.2.1: install and set up
 
           INSTALL (once per Mac)
           1. Unzip.

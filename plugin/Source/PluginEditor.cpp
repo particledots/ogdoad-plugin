@@ -22,6 +22,23 @@ namespace
         }
     }
 
+    // A round light with a soft halo; level 0 to 1 decides how brightly it shines.
+    void drawLight (juce::Graphics& g, float cx, float cy, float radius, juce::Colour colour, double level)
+    {
+        const float lv = (float) juce::jlimit (0.0, 1.0, level);
+        if (lv > 0.15f)
+        {
+            g.setColour (colour.withAlpha (0.10f * lv));
+            g.fillEllipse (cx - radius - 5.0f, cy - radius - 5.0f, 2.0f * (radius + 5.0f), 2.0f * (radius + 5.0f));
+            g.setColour (colour.withAlpha (0.18f * lv));
+            g.fillEllipse (cx - radius - 3.0f, cy - radius - 3.0f, 2.0f * (radius + 3.0f), 2.0f * (radius + 3.0f));
+        }
+        g.setColour (knobFill);
+        g.fillEllipse (cx - radius, cy - radius, 2.0f * radius, 2.0f * radius);
+        g.setColour (colour.withAlpha (lightAlpha (lv)));
+        g.fillEllipse (cx - radius, cy - radius, 2.0f * radius, 2.0f * radius);
+    }
+
     double tri (double ph)
     {
         ph -= std::floor (ph);
@@ -110,7 +127,7 @@ LanesView::LanesView (OgdoadProcessor& p) : proc (p)
 void LanesView::paint (juce::Graphics& g)
 {
     const float w = (float) getWidth();
-    const float scopeX = 40.0f, scopeW = w - 40.0f - 120.0f;
+    const float scopeX = 52.0f, scopeW = w - 52.0f - 120.0f;
     const double window = 2.0;                     // seconds shown in each trace
     g.setFont (font (12.5f));
 
@@ -126,33 +143,42 @@ void LanesView::paint (juce::Graphics& g)
 
         // The light: amber above the centre, blue below, brighter further out (like a bipolar LED).
         const auto ledColour = v >= 0.0 ? amber : blue;
-        const float level = (float) std::fabs (v);
-        g.setColour (knobFill);
-        g.fillEllipse (20.0f, mid - 5.0f, 10.0f, 10.0f);
-        g.setColour (ledColour.withAlpha (0.15f + 0.85f * level));
-        g.fillEllipse (20.0f, mid - 5.0f, 10.0f, 10.0f);
+        const double level = std::fabs (v);
+        drawLight (g, 31.0f, mid, 8.5f, ledColour, level);
 
-        // The trace: the last two seconds, now at the right edge.
-        const float top = mid - 7.0f, amp = 6.0f;
-        g.setColour (amber);
-        if (hz * window > 60.0)
+        if (! waves)
         {
-            g.setColour (amber.withAlpha (0.45f));
-            g.fillRect (scopeX, top, scopeW, 14.0f);
+            // Lights view: a light strip that shines with the same colour and brightness.
+            const juce::Rectangle<float> strip (scopeX, mid - 6.0f, scopeW, 12.0f);
+            g.setColour (knobFill);
+            g.fillRoundedRectangle (strip, 6.0f);
+            g.setColour (ledColour.withAlpha (0.08f + 0.55f * (float) std::pow (level, 0.6)));
+            g.fillRoundedRectangle (strip, 6.0f);
         }
         else
         {
-            juce::Path p;
-            const int points = juce::jmax (2, (int) scopeW);
-            for (int k = 0; k <= points; ++k)
+            // Waves view: the last two seconds, now at the right edge.
+            const float top = mid - 7.0f, amp = 6.0f;
+            g.setColour (amber);
+            if (hz * window > 60.0)
             {
-                const double secondsAgo = window * (1.0 - (double) k / points);
-                const double val = hz > 0.0 ? tri (ph - hz * secondsAgo) : v;
-                const float px = scopeX + scopeW * (float) k / (float) points;
-                const float py = mid - amp * (float) val;
-                if (k == 0) p.startNewSubPath (px, py); else p.lineTo (px, py);
+                g.setColour (amber.withAlpha (0.45f));
+                g.fillRect (scopeX, top, scopeW, 14.0f);
             }
-            g.strokePath (p, juce::PathStrokeType (1.0f));
+            else
+            {
+                juce::Path p;
+                const int points = juce::jmax (2, (int) scopeW);
+                for (int k = 0; k <= points; ++k)
+                {
+                    const double secondsAgo = window * (1.0 - (double) k / points);
+                    const double val = hz > 0.0 ? tri (ph - hz * secondsAgo) : v;
+                    const float px = scopeX + scopeW * (float) k / (float) points;
+                    const float py = mid - amp * (float) val;
+                    if (k == 0) p.startNewSubPath (px, py); else p.lineTo (px, py);
+                }
+                g.strokePath (p, juce::PathStrokeType (1.0f));
+            }
         }
 
         g.setColour (text);
@@ -203,7 +229,7 @@ void ExSection::timerCallback()
     for (int k = 0; k < ogdoad::kNumTrigs; ++k)
     {
         const unsigned n = proc.trigPulses[(size_t) k].load();
-        if (n != lastPulses[(size_t) k]) { lastPulses[(size_t) k] = n; flashFrames[(size_t) k] = 4; }   // about 130 ms
+        if (n != lastPulses[(size_t) k]) { lastPulses[(size_t) k] = n; flashFrames[(size_t) k] = kFlashFrames; }
         else if (flashFrames[(size_t) k] > 0) --flashFrames[(size_t) k];
     }
     repaint();
@@ -227,19 +253,19 @@ void ExSection::paint (juce::Graphics& g)
     // active: sending (label bright); lit: the light shows the level.
     auto cell = [&] (float x, float cy, const juce::String& name, const juce::String& sub, double level, bool bipolar, bool active, bool lit)
     {
-        g.setColour (knobFill);
-        g.fillEllipse (x, cy - 5.0f, 10.0f, 10.0f);
         if (lit)
+            drawLight (g, x + 7.0f, cy, 7.0f, bipolar && level < 0.0 ? blue : amber, std::fabs (level));
+        else
         {
-            g.setColour ((bipolar && level < 0.0 ? blue : amber).withAlpha (0.15f + 0.85f * (float) juce::jlimit (0.0, 1.0, std::fabs (level))));
-            g.fillEllipse (x, cy - 5.0f, 10.0f, 10.0f);
+            g.setColour (knobFill);
+            g.fillEllipse (x, cy - 7.0f, 14.0f, 14.0f);
         }
         g.setColour (active ? text : dim);
         g.setFont (font (12.5f));
-        g.drawText (name, juce::Rectangle<float> (x + 16.0f, cy - 8.5f, 50.0f, 17.0f), juce::Justification::centredLeft);
+        g.drawText (name, juce::Rectangle<float> (x + 19.0f, cy - 8.5f, 46.0f, 17.0f), juce::Justification::centredLeft);
         g.setColour (dim);
         g.setFont (font (11.0f));
-        g.drawText (sub, juce::Rectangle<float> (x + 16.0f, cy + 7.0f, 52.0f, 14.0f), juce::Justification::centredLeft);
+        g.drawText (sub, juce::Rectangle<float> (x + 19.0f, cy + 8.0f, 52.0f, 14.0f), juce::Justification::centredLeft);
     };
 
     auto title = [&] (float x, float y, const char* t)
@@ -282,11 +308,11 @@ void ExSection::paint (juce::Graphics& g)
     for (int k = 0; k < 4; ++k)
     {
         const bool inUse = useButtons[(size_t) k].getToggleState();
-        const bool flash = proc.trigOn[(size_t) k].load() || flashFrames[(size_t) k] > 0;
         juce::String sub = mode == 0 ? "CC " + juce::String (ogdoad::kTrigCc[k])
                          : mode == 1 ? "note " + juce::String (noteNames[k])
                          : juce::String (ogdoad::kTrigCc[k]) + juce::String::fromUTF8 (" \xc2\xb7 ") + noteNames[k];
-        cell (trX[k], trY[k], juce::String::fromUTF8 (trNames[k]), sub, 1.0, false, on && inUse, on && inUse && flash);
+        const double flashLevel = proc.trigOn[(size_t) k].load() ? 1.0 : (double) flashFrames[(size_t) k] / (double) kFlashFrames;
+        cell (trX[k], trY[k], juce::String::fromUTF8 (trNames[k]), sub, flashLevel, false, on && inUse, on && inUse);
     }
 
     g.setColour (dim);
@@ -345,12 +371,47 @@ OgdoadEditor::OgdoadEditor (OgdoadProcessor& p)
 
     addAndMakeVisible (lanesView);
     addAndMakeVisible (exSection);
+
+    // Lights | Waves: one or the other; the choice is kept in the saved state.
+    lightsButton.setRadioGroupId (4711);
+    wavesButton.setRadioGroupId (4711);
+    lightsButton.setClickingTogglesState (true);
+    wavesButton.setClickingTogglesState (true);
+    lightsButton.setTooltip ("Show the eight LFOs as lights");
+    wavesButton.setTooltip ("Show the eight LFOs as moving waves");
+    lightsButton.onClick = [this] { if (lightsButton.getToggleState()) proc.getValueTreeState().state.setProperty (wavesViewProperty, false, nullptr); };
+    wavesButton.onClick  = [this] { if (wavesButton.getToggleState())  proc.getValueTreeState().state.setProperty (wavesViewProperty, true, nullptr); };
+    addAndMakeVisible (lightsButton);
+    addAndMakeVisible (wavesButton);
+    showView ((bool) vts.state.getProperty (wavesViewProperty, false));
+    vts.state.addListener (this);
+
     setSize (kWidth, kHeight);
 }
 
 OgdoadEditor::~OgdoadEditor()
 {
+    proc.getValueTreeState().state.removeListener (this);
     setLookAndFeel (nullptr);
+}
+
+void OgdoadEditor::showView (bool waves)
+{
+    lanesView.setWaves (waves);
+    lightsButton.setToggleState (! waves, juce::dontSendNotification);
+    wavesButton.setToggleState (waves, juce::dontSendNotification);
+}
+
+void OgdoadEditor::valueTreeRedirected (juce::ValueTree& tree)
+{
+    if (tree == proc.getValueTreeState().state)
+        showView ((bool) tree.getProperty (wavesViewProperty, false));
+}
+
+void OgdoadEditor::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& property)
+{
+    if (property == wavesViewProperty && tree == proc.getValueTreeState().state)
+        showView ((bool) tree.getProperty (wavesViewProperty, false));
 }
 
 std::vector<OgdoadEditor::ControlInfo> OgdoadEditor::controls()
@@ -379,9 +440,9 @@ void OgdoadEditor::paint (juce::Graphics& g)
 
     // Lane legend
     g.setColour (dim);
-    g.setFont (font (12.0f));
-    g.drawText (juce::String::fromUTF8 ("fastest at top, slowest at bottom \xc2\xb7 light: amber = up, blue = down"),
-                juce::Rectangle<int> (20, lanesView.getBottom() + 4, 440, 18), juce::Justification::centredLeft);
+    g.setFont (font (11.5f));
+    g.drawText (juce::String::fromUTF8 ("fastest at top, slowest at bottom \xc2\xb7 amber = up, blue = down"),
+                juce::Rectangle<int> (20, lanesView.getBottom() + 4, 340, 18), juce::Justification::centredLeft);
 
     // Footer
     const float fy = (float) getHeight() - 38.0f;
@@ -411,6 +472,8 @@ void OgdoadEditor::resized()
 
     lanesView.setBounds (left, top + 98, 450, LanesView::kRowHeight * ogdoad::kNumLanes);
     exSection.setBounds (490, top, ExSection::kWidth, ExSection::kHeight);
+    lightsButton.setBounds (left + 450 - 108, lanesView.getBottom() + 3, 52, 20);
+    wavesButton.setBounds (left + 450 - 52, lanesView.getBottom() + 3, 52, 20);
 
     const int fy = getHeight() - 38;
     channelBox.setBounds (130, fy + 7, 56, 24);

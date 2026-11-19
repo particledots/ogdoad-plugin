@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 (window update; not yet tested in Logic)
+
+- Brighter, bigger lights: the eight LFO lights and the sixteen Ogdoad Ex lights are larger, have a soft halo, and shine
+  clearly already at 30% of their range. The four trig lights now fade out over about a quarter of a second instead of cutting off.
+- Lights | Waves button under the eight lanes. *Lights* (default) shows a light strip beside each light; *Waves* shows the
+  moving traces as in 0.2.0. The choice is saved with the project (a project saved with 0.2.0 opens on Lights).
+- Nothing else changes: the engine, every parameter id, CC and note number, the mapper and its Source menu order are as in 0.2.0.
+
 ## 0.2.0 (milestone 2: Ogdoad Ex; tested in Logic on both Macs on 2026-11-19: working)
 
 - Ogdoad Ex comes alive in the same window: sixteen outputs, each with a light and its CC number.

@@ -5,7 +5,8 @@ the bottom, plus sixteen more outputs worked out from them (Ogdoad Ex), all sent
 feel of an eight-LFO Eurorack module and its expander. All code is our own; it is not a port or copy of anything, and
 it is not affiliated with any module maker.
 
-Status: **version 0.2.0 (milestone 2: Ogdoad Ex) tested in Logic on both Macs on 2026-11-19 and working.**
+Status: **version 0.2.1 (window update: brighter lights and a Lights | Waves button) built, not yet tested in Logic.** Version 0.2.0
+(milestone 2: Ogdoad Ex) was tested in Logic on both Macs on 2026-11-19 and works; 0.2.1 changes only the window, not one MIDI message.
 Milestone 1 (0.1.0) was tested in Logic on 2026-11-19 and works.
 
 - **Rate** moves all eight together. At the centre LFO 1 runs at about 4.9 Hz and LFO 8 at one cycle in 19 s; each LFO
@@ -17,6 +18,9 @@ Milestone 1 (0.1.0) was tested in Logic on 2026-11-19 and works.
 - **Hold** freezes all eight; **Pedal** makes the sustain pedal (CC 64) hold them too, while it is down.
 - **Drift** (Off / Low / More): a slow random wander of each LFO's speed, so the eight never repeat exactly.
   Low = up to 0.05 octave, More = up to 0.18 octave.
+- **Lights | Waves** (under the eight lanes): *Lights* (the default) shows each LFO as a bright round light plus a light strip
+  of the same colour and brightness; *Waves* shows the last two seconds of each LFO as a moving trace instead. The choice is
+  saved with the project. It is not an audio parameter and changes nothing that is sent.
 - **MIDI out channel** (bottom left, default 16). Your own notes and every other message pass through untouched.
 
 ## Ogdoad Ex
@@ -114,8 +118,8 @@ with Ex off and about 4,600 with Ex on; the Ex **On** switch is there for tracks
 - **Mac build**: universal binary (Apple Silicon + Intel), ad-hoc signing, Apple's `auval` (as a MIDI effect,
   `aumi Ogd1 Pdot`), pluginval at strictness 5 on the AU and the VST3, the package contents.
 - **Window picture and plugin checks**: the real window drawn to pictures (artifact **Ogdoad-window-pictures**: default,
-  running, held, Ex with trig 4 off in Note mode, Ex off), every control moving only its own parameter, save and
-  reload, a 0.1.0 project loading with Ex at its defaults, MIDI passing through, CC on the chosen channel, mod wheel,
+  running, held, Waves view, Ex with trig 4 off in Note mode, Ex off), every control moving only its own parameter, save and
+  reload (including the Lights | Waves choice), a 0.1.0 project loading with Ex at its defaults, a 0.2.0 project opening on Lights, MIDI passing through, CC on the chosen channel, mod wheel,
   pedal, bypass, block sizes, and Ogdoad Ex in the real plugin (the CC numbers used, pulses, notes, both, the chain,
   Ex off, bypass during a trigger note).
 

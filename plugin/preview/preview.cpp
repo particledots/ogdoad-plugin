@@ -1,7 +1,7 @@
 // Offline window picture and plugin checks (not part of the plugin; only built with -DOGDOAD_BUILD_PREVIEW=ON).
 //   1. draws the window to picture files (default, running, held);
 //   2. checks that all 13 ids exist, each has exactly one control, and each control moves exactly its own parameter;
-//   3. checks saving and reloading (and loading a 0.1.0 project);
+//   3. checks saving and reloading (and loading a 0.1.0 project and a 0.2.0 one, and the Lights | Waves choice);
 //   4. checks the MIDI: notes and other messages pass through untouched, the LFOs come out as CC 20-27 / 52-59 on the
 //      chosen channel, the mod wheel and sustain pedal work, bypass adds nothing, and Logic's block size makes no difference;
 //   5. checks Ogdoad Ex in the real plugin: the sixteen outputs, Ex off, the trig chain, CC pulses, notes, both.
@@ -177,6 +177,28 @@ int main (int argc, char** argv)
         runBlocks (proc, 0.3, 512);
         snapshotTo (*ed, outDir.getChildFile ("ogdoad-window-ex-off.png"));
         setParam (proc, "exOn", 1.0f);
+
+        // Lights | Waves (0.2.1): starts on Lights, switches, saves, moves no parameter.
+        expect (! ed->isWavesView() && ed->lightsButton.getToggleState() && ! ed->wavesButton.getToggleState(), "window starts in Lights view");
+        const auto beforeView = snapshot (proc);
+        ed->wavesButton.setToggleState (true, juce::sendNotificationSync);   // the same path as a click
+        expect (ed->isWavesView() && ed->wavesButton.getToggleState() && ! ed->lightsButton.getToggleState()
+                && (bool) proc.getValueTreeState().state.getProperty (OgdoadEditor::wavesViewProperty, false),
+                "Waves button shows the waves and keeps the choice in the saved state");
+        runBlocks (proc, 0.5, 512);
+        snapshotTo (*ed, outDir.getChildFile ("ogdoad-window-waves.png"));
+        ed->lightsButton.setToggleState (true, juce::sendNotificationSync);
+        expect (! ed->isWavesView() && ! (bool) proc.getValueTreeState().state.getProperty (OgdoadEditor::wavesViewProperty, false),
+                "Lights button shows the lights again");
+        expect (snapshot (proc) == beforeView, "switching the view moves no parameter");
+        expect (ed->controls().size() == 13, "the view buttons are not parameter controls");
+
+        // The light curve: faint at 0, clearly lit at 30% (brighter than the 0.2.0 curve), full at 1, never falling.
+        bool rising = true;
+        for (int k = 1; k <= 100; ++k) rising = rising && OgdoadStyle::lightAlpha (k / 100.0) >= OgdoadStyle::lightAlpha ((k - 1) / 100.0);
+        expect (std::fabs (OgdoadStyle::lightAlpha (0.0) - 0.10f) < 1.0e-6f && std::fabs (OgdoadStyle::lightAlpha (1.0) - 1.0f) < 1.0e-6f
+                && OgdoadStyle::lightAlpha (0.3) > 0.15f + 0.85f * 0.3f && rising && OgdoadStyle::lightAlpha (7.0) <= 1.0f,
+                "light brightness curve: 0.10 at 0, 1.0 at 1, stronger than 0.2.0 at 30%, never falling");
     }
 
     // ---- 3: saving and reloading ----------------------------------------------------------------------------------
@@ -204,6 +226,22 @@ int main (int argc, char** argv)
                 "0.1.0 project: its settings come back");
         expect (param (c, "exOn")->getValue() == 1.0f && param (c, "trigUse2")->getValue() == 1.0f && param (c, "trigMode")->getValue() == 0.0f,
                 "0.1.0 project: Ex on, all trigs in use, CC pulse");
+
+        // The Lights | Waves choice is saved with the project; a 0.2.0 project (no choice saved) opens on Lights.
+        a.getValueTreeState().state.setProperty (OgdoadEditor::wavesViewProperty, true, nullptr);
+        juce::MemoryBlock withView; a.getStateInformation (withView);
+        OgdoadProcessor d; d.setStateInformation (withView.getData(), (int) withView.getSize());
+        std::unique_ptr<OgdoadEditor> edD (dynamic_cast<OgdoadEditor*> (d.createEditor()));
+        expect (snapshot (a) == snapshot (d) && edD->isWavesView() && edD->wavesButton.getToggleState(),
+                "Waves view is saved and comes back when the project is reloaded");
+        auto xml020 = a.getValueTreeState().copyState().createXml();
+        xml020->removeAttribute (OgdoadEditor::wavesViewProperty.toString());
+        juce::MemoryBlock v020; juce::AudioProcessor::copyXmlToBinary (*xml020, v020);
+        d.setStateInformation (v020.getData(), (int) v020.getSize());           // loaded while the window is open
+        expect (! edD->isWavesView() && edD->lightsButton.getToggleState(), "0.2.0 project (no view saved): the open window goes to Lights");
+        OgdoadProcessor e; e.setStateInformation (v020.getData(), (int) v020.getSize());
+        std::unique_ptr<OgdoadEditor> edE (dynamic_cast<OgdoadEditor*> (e.createEditor()));
+        expect (! edE->isWavesView() && snapshot (a) == snapshot (e), "0.2.0 project opens on Lights with all its settings");
     }
 
     // ---- 4: MIDI --------------------------------------------------------------------------------------------------

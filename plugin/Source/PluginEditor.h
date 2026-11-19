@@ -6,6 +6,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <cmath>
 #include "PluginProcessor.h"
 
 namespace OgdoadStyle
@@ -21,6 +22,12 @@ namespace OgdoadStyle
     inline const juce::Colour amber     { 0xfffac775 };
     inline const juce::Colour amberDeep { 0xffef9f27 };
     inline const juce::Colour blue      { 0xff378add };
+
+    // How strongly a light shines for a level from 0 to 1: a faint glow at 0, clearly lit already at 30%, full at 1.
+    inline float lightAlpha (double level)
+    {
+        return 0.10f + 0.90f * (float) std::pow (juce::jlimit (0.0, 1.0, level), 0.6);
+    }
 }
 
 class OgdoadLookAndFeel : public juce::LookAndFeel_V4
@@ -36,18 +43,22 @@ public:
     juce::Font getPopupMenuFont() override { return juce::Font (juce::FontOptions (13.0f)); }
 };
 
-// The eight lanes: number, light, moving trace, speed, CC number.
+// The eight lanes: number, light, then either a light strip (Lights view, the default) or the moving trace (Waves
+// view), speed, CC number.
 class LanesView : public juce::Component, private juce::Timer
 {
 public:
     explicit LanesView (OgdoadProcessor& p);
     ~LanesView() override { stopTimer(); }
     void paint (juce::Graphics&) override;
+    void setWaves (bool shouldShowWaves) { if (waves != shouldShowWaves) { waves = shouldShowWaves; repaint(); } }
+    bool isWaves() const { return waves; }
     static constexpr int kRowHeight = 23;
 
 private:
     void timerCallback() override { repaint(); }
     OgdoadProcessor& proc;
+    bool waves = false;
 };
 
 // Ogdoad Ex: the sixteen outputs (light, name, CC number), the On switch, the four "in use" switches and Trig out.
@@ -64,12 +75,13 @@ public:
     juce::ComboBox modeBox;
 
     static constexpr int kWidth = 270, kHeight = 350;
+    static constexpr int kFlashFrames = 8;                  // about 270 ms at 30 frames a second
 
 private:
     void timerCallback() override;
     OgdoadProcessor& proc;
     std::array<unsigned, ogdoad::kNumTrigs> lastPulses {};
-    std::array<int, ogdoad::kNumTrigs> flashFrames {};
+    std::array<int, ogdoad::kNumTrigs> flashFrames {};      // counts down from kFlashFrames: the trig light fades out
 
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
     std::unique_ptr<ButtonAttachment> onAtt;
@@ -77,7 +89,7 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAtt;
 };
 
-class OgdoadEditor : public juce::AudioProcessorEditor
+class OgdoadEditor : public juce::AudioProcessorEditor, private juce::ValueTree::Listener
 {
 public:
     explicit OgdoadEditor (OgdoadProcessor&);
@@ -90,9 +102,18 @@ public:
     struct ControlInfo { juce::Component* control; juce::String paramId; };
     std::vector<ControlInfo> controls();
 
+    // Lights | Waves: which view the eight lanes show. Saved with the project (not an audio parameter).
+    juce::TextButton lightsButton { "Lights" }, wavesButton { "Waves" };
+    bool isWavesView() const { return lanesView.isWaves(); }
+    static inline const juce::Identifier wavesViewProperty { "wavesView" };
+
     static constexpr int kWidth = 780, kHeight = 470;
 
 private:
+    void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override;
+    void valueTreeRedirected (juce::ValueTree&) override;
+    void showView (bool waves);
+
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboAttachment  = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
