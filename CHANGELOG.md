@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (milestone 2: Ogdoad Ex; built and checked, waiting for the test in Logic)
+## 0.2.0 (milestone 2: Ogdoad Ex; tested in Logic on both Macs on 2026-11-19: working)
 
 - Ogdoad Ex comes alive in the same window: sixteen outputs, each with a light and its CC number.
   - fold ×2 (LFO 1, 3, 5, 7) on CC 12-15 / 44-47; max and min of LFO 2 and 3 and of 6 and 7 on CC 16-19 / 48-51;

@@ -5,7 +5,7 @@ the bottom, plus sixteen more outputs worked out from them (Ogdoad Ex), all sent
 feel of an eight-LFO Eurorack module and its expander. All code is our own; it is not a port or copy of anything, and
 it is not affiliated with any module maker.
 
-Status: **version 0.2.0 (milestone 2: Ogdoad Ex) built and checked; waiting for the test in Logic.**
+Status: **version 0.2.0 (milestone 2: Ogdoad Ex) tested in Logic on both Macs on 2026-11-19 and working.**
 Milestone 1 (0.1.0) was tested in Logic on 2026-11-19 and works.
 
 - **Rate** moves all eight together. At the centre LFO 1 runs at about 4.9 Hz and LFO 8 at one cycle in 19 s; each LFO
