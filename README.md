@@ -5,9 +5,9 @@ the bottom, plus sixteen more outputs worked out from them (Ogdoad Ex), all sent
 feel of an eight-LFO Eurorack module and its expander. All code is our own; it is not a port or copy of anything, and
 it is not affiliated with any module maker.
 
-Status: **version 0.2.1 (window update: brighter lights and a Lights | Waves button) built, not yet tested in Logic.** Version 0.2.0
-(milestone 2: Ogdoad Ex) was tested in Logic on both Macs on 2026-11-19 and works; 0.2.1 changes only the window, not one MIDI message.
-Milestone 1 (0.1.0) was tested in Logic on 2026-11-19 and works.
+Status: **version 0.2.2 (resizable window) built, not yet tested in Logic.** Version 0.2.1 (brighter lights and the
+Lights | Waves button) was tested in Logic by Bryn on 2026-11-19 and works; version 0.2.0 (milestone 2: Ogdoad Ex) was tested
+in Logic on both Macs on 2026-11-19 and works. Versions 0.2.1 and 0.2.2 change only the window, not one MIDI message.
 
 - **Rate** moves all eight together. At the centre LFO 1 runs at about 4.9 Hz and LFO 8 at one cycle in 19 s; each LFO
   is about 1.9 times slower than the one above, in uneven steps so they never lock together. Fully clockwise LFO 1 runs
@@ -21,6 +21,9 @@ Milestone 1 (0.1.0) was tested in Logic on 2026-11-19 and works.
 - **Lights | Waves** (under the eight lanes): *Lights* (the default) shows each LFO as a bright round light plus a light strip
   of the same colour and brightness; *Waves* shows the last two seconds of each LFO as a moving trace instead. The choice is
   saved with the project. It is not an audio parameter and changes nothing that is sent.
+- **Resizing**: drag the corner at the bottom right. The window scales from 80% to 200% of its normal size (624 x 376 to
+  1560 x 940) with its proportions locked, and everything grows together. The size is saved with the project; a project
+  with no size saved opens at the normal 780 x 470.
 - **MIDI out channel** (bottom left, default 16). Your own notes and every other message pass through untouched.
 
 ## Ogdoad Ex
@@ -118,8 +121,8 @@ with Ex off and about 4,600 with Ex on; the Ex **On** switch is there for tracks
 - **Mac build**: universal binary (Apple Silicon + Intel), ad-hoc signing, Apple's `auval` (as a MIDI effect,
   `aumi Ogd1 Pdot`), pluginval at strictness 5 on the AU and the VST3, the package contents.
 - **Window picture and plugin checks**: the real window drawn to pictures (artifact **Ogdoad-window-pictures**: default,
-  running, held, Waves view, Ex with trig 4 off in Note mode, Ex off), every control moving only its own parameter, save and
-  reload (including the Lights | Waves choice), a 0.1.0 project loading with Ex at its defaults, a 0.2.0 project opening on Lights, MIDI passing through, CC on the chosen channel, mod wheel,
+  running, held, Waves view, small / medium / large size, Ex with trig 4 off in Note mode, Ex off), every control moving only its own parameter, save and
+  reload (including the Lights | Waves choice), a 0.1.0 project loading with Ex at its defaults, a 0.2.0 project opening on Lights at the normal size, the window size limits and locked proportions, every control inside the window at 80%, 150% and 200%, the saved size coming back, MIDI passing through, CC on the chosen channel, mod wheel,
   pedal, bypass, block sizes, and Ogdoad Ex in the real plugin (the CC numbers used, pulses, notes, both, the chain,
   Ex off, bypass during a trigger note).
 

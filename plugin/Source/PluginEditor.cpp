@@ -322,8 +322,8 @@ void ExSection::paint (juce::Graphics& g)
 }
 
 // ================================================================================================
-OgdoadEditor::OgdoadEditor (OgdoadProcessor& p)
-    : AudioProcessorEditor (&p), proc (p), lanesView (p), exSection (p)
+OgdoadPanel::OgdoadPanel (OgdoadProcessor& p)
+    : proc (p), lanesView (p), exSection (p)
 {
     setLookAndFeel (&lnf);
     auto& vts = proc.getValueTreeState();
@@ -389,32 +389,32 @@ OgdoadEditor::OgdoadEditor (OgdoadProcessor& p)
     setSize (kWidth, kHeight);
 }
 
-OgdoadEditor::~OgdoadEditor()
+OgdoadPanel::~OgdoadPanel()
 {
     proc.getValueTreeState().state.removeListener (this);
     setLookAndFeel (nullptr);
 }
 
-void OgdoadEditor::showView (bool waves)
+void OgdoadPanel::showView (bool waves)
 {
     lanesView.setWaves (waves);
     lightsButton.setToggleState (! waves, juce::dontSendNotification);
     wavesButton.setToggleState (waves, juce::dontSendNotification);
 }
 
-void OgdoadEditor::valueTreeRedirected (juce::ValueTree& tree)
+void OgdoadPanel::valueTreeRedirected (juce::ValueTree& tree)
 {
     if (tree == proc.getValueTreeState().state)
         showView ((bool) tree.getProperty (wavesViewProperty, false));
 }
 
-void OgdoadEditor::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& property)
+void OgdoadPanel::valueTreePropertyChanged (juce::ValueTree& tree, const juce::Identifier& property)
 {
     if (property == wavesViewProperty && tree == proc.getValueTreeState().state)
         showView ((bool) tree.getProperty (wavesViewProperty, false));
 }
 
-std::vector<OgdoadEditor::ControlInfo> OgdoadEditor::controls()
+std::vector<OgdoadPanel::ControlInfo> OgdoadPanel::controls()
 {
     return { { &rateKnob, OgdoadParams::rate }, { &modKnob, OgdoadParams::modAmount }, { &modSourceBox, OgdoadParams::modSource },
              { &holdButton, OgdoadParams::hold }, { &pedalButton, OgdoadParams::holdPedal }, { &driftBox, OgdoadParams::drift },
@@ -425,7 +425,7 @@ std::vector<OgdoadEditor::ControlInfo> OgdoadEditor::controls()
              { &exSection.modeBox, OgdoadParams::trigMode } };
 }
 
-void OgdoadEditor::paint (juce::Graphics& g)
+void OgdoadPanel::paint (juce::Graphics& g)
 {
     g.fillAll (panel);
 
@@ -456,7 +456,7 @@ void OgdoadEditor::paint (juce::Graphics& g)
     g.drawText ("v" + juce::String (JucePlugin_VersionString), juce::Rectangle<int> (getWidth() - 120, (int) fy + 8, 100, 22), juce::Justification::centredRight);
 }
 
-void OgdoadEditor::resized()
+void OgdoadPanel::resized()
 {
     const int left = 20, top = 70;
     rateKnob.setBounds (left, top, 64, 64);
@@ -477,4 +477,39 @@ void OgdoadEditor::resized()
 
     const int fy = getHeight() - 38;
     channelBox.setBounds (130, fy + 7, 56, 24);
+}
+
+// ================================================================================================
+OgdoadEditor::OgdoadEditor (OgdoadProcessor& p)
+    : AudioProcessorEditor (&p), panel (p), proc (p)
+{
+    addAndMakeVisible (panel);
+
+    constrainer.setFixedAspectRatio ((double) kWidth / (double) kHeight);
+    constrainer.setSizeLimits (kMinWidth, heightForWidth (kMinWidth), kMaxWidth, heightForWidth (kMaxWidth));
+    setConstrainer (&constrainer);
+    setResizable (true, true);                       // with the drag corner
+
+    const int saved = (int) proc.getValueTreeState().state.getProperty (widthProperty, kWidth);
+    const int width = juce::jlimit (kMinWidth, kMaxWidth, saved);
+    setSize (width, heightForWidth (width));
+}
+
+OgdoadEditor::~OgdoadEditor() = default;
+
+void OgdoadEditor::paint (juce::Graphics& g)
+{
+    g.fillAll (OgdoadStyle::panel);
+}
+
+void OgdoadEditor::resized()
+{
+    const double scale = juce::jmin ((double) getWidth() / kWidth, (double) getHeight() / kHeight);
+    panel.setTransform (juce::AffineTransform::scale ((float) scale));
+    panel.setBounds (0, 0, kWidth, kHeight);
+
+    // Keep the chosen size with the project.
+    auto& state = proc.getValueTreeState().state;
+    if ((int) state.getProperty (widthProperty, -1) != getWidth())
+        state.setProperty (widthProperty, getWidth(), nullptr);
 }

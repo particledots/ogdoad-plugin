@@ -89,11 +89,12 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAtt;
 };
 
-class OgdoadEditor : public juce::AudioProcessorEditor, private juce::ValueTree::Listener
+// The whole panel at its design size (780 x 470). The editor below scales it to the window.
+class OgdoadPanel : public juce::Component, private juce::ValueTree::Listener
 {
 public:
-    explicit OgdoadEditor (OgdoadProcessor&);
-    ~OgdoadEditor() override;
+    explicit OgdoadPanel (OgdoadProcessor&);
+    ~OgdoadPanel() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -107,7 +108,7 @@ public:
     bool isWavesView() const { return lanesView.isWaves(); }
     static inline const juce::Identifier wavesViewProperty { "wavesView" };
 
-    static constexpr int kWidth = 780, kHeight = 470;
+    static constexpr int kWidth = 780, kHeight = 470;      // the design size; everything is laid out at this size
 
 private:
     void valueTreePropertyChanged (juce::ValueTree&, const juce::Identifier&) override;
@@ -131,6 +132,35 @@ private:
     std::unique_ptr<SliderAttachment> rateAtt, modAtt;
     std::unique_ptr<ComboAttachment> modSourceAtt, driftAtt, channelAtt;
     std::unique_ptr<ButtonAttachment> holdAtt, pedalAtt;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OgdoadPanel)
+};
+
+// The plugin window: resizable between 80% and 200% of the design size, proportions locked. The panel is drawn at its
+// design size and scaled to fit, so every control, light and letter grows together. The width is saved with the project.
+class OgdoadEditor : public juce::AudioProcessorEditor
+{
+public:
+    explicit OgdoadEditor (OgdoadProcessor&);
+    ~OgdoadEditor() override;
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+
+    // For the offline checks (they forward to the panel).
+    std::vector<OgdoadPanel::ControlInfo> controls() { return panel.controls(); }
+    bool isWavesView() const { return panel.isWavesView(); }
+
+    static constexpr int kWidth = OgdoadPanel::kWidth, kHeight = OgdoadPanel::kHeight;
+    static constexpr int kMinWidth = 624, kMaxWidth = 1560;     // 80% and 200%
+    static inline const juce::Identifier widthProperty { "editorWidth" };
+    static int heightForWidth (int width) { return juce::roundToInt ((double) width * kHeight / kWidth); }
+
+    OgdoadPanel panel;
+
+private:
+    OgdoadProcessor& proc;
+    juce::ComponentBoundsConstrainer constrainer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OgdoadEditor)
 };

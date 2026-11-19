@@ -179,16 +179,16 @@ int main (int argc, char** argv)
         setParam (proc, "exOn", 1.0f);
 
         // Lights | Waves (0.2.1): starts on Lights, switches, saves, moves no parameter.
-        expect (! ed->isWavesView() && ed->lightsButton.getToggleState() && ! ed->wavesButton.getToggleState(), "window starts in Lights view");
+        expect (! ed->isWavesView() && ed->panel.lightsButton.getToggleState() && ! ed->panel.wavesButton.getToggleState(), "window starts in Lights view");
         const auto beforeView = snapshot (proc);
-        ed->wavesButton.setToggleState (true, juce::sendNotificationSync);   // the same path as a click
-        expect (ed->isWavesView() && ed->wavesButton.getToggleState() && ! ed->lightsButton.getToggleState()
-                && (bool) proc.getValueTreeState().state.getProperty (OgdoadEditor::wavesViewProperty, false),
+        ed->panel.wavesButton.setToggleState (true, juce::sendNotificationSync);   // the same path as a click
+        expect (ed->isWavesView() && ed->panel.wavesButton.getToggleState() && ! ed->panel.lightsButton.getToggleState()
+                && (bool) proc.getValueTreeState().state.getProperty (OgdoadPanel::wavesViewProperty, false),
                 "Waves button shows the waves and keeps the choice in the saved state");
         runBlocks (proc, 0.5, 512);
         snapshotTo (*ed, outDir.getChildFile ("ogdoad-window-waves.png"));
-        ed->lightsButton.setToggleState (true, juce::sendNotificationSync);
-        expect (! ed->isWavesView() && ! (bool) proc.getValueTreeState().state.getProperty (OgdoadEditor::wavesViewProperty, false),
+        ed->panel.lightsButton.setToggleState (true, juce::sendNotificationSync);
+        expect (! ed->isWavesView() && ! (bool) proc.getValueTreeState().state.getProperty (OgdoadPanel::wavesViewProperty, false),
                 "Lights button shows the lights again");
         expect (snapshot (proc) == beforeView, "switching the view moves no parameter");
         expect (ed->controls().size() == 13, "the view buttons are not parameter controls");
@@ -199,6 +199,44 @@ int main (int argc, char** argv)
         expect (std::fabs (OgdoadStyle::lightAlpha (0.0) - 0.10f) < 1.0e-6f && std::fabs (OgdoadStyle::lightAlpha (1.0) - 1.0f) < 1.0e-6f
                 && OgdoadStyle::lightAlpha (0.3) > 0.15f + 0.85f * 0.3f && rising && OgdoadStyle::lightAlpha (7.0) <= 1.0f,
                 "light brightness curve: 0.10 at 0, 1.0 at 1, stronger than 0.2.0 at 30%, never falling");
+    }
+
+    // Resizing (0.2.2): the window scales between 80% and 200% with its proportions locked; everything stays inside.
+    {
+        OgdoadProcessor proc; proc.prepareToPlay (48000.0, 512);
+        std::unique_ptr<OgdoadEditor> ed (dynamic_cast<OgdoadEditor*> (proc.createEditor()));
+        expect (ed->isResizable() && ed->getConstrainer() != nullptr, "the window is resizable");
+        auto* con = ed->getConstrainer();
+        const double ratio = (double) OgdoadEditor::kWidth / OgdoadEditor::kHeight;
+        auto clamp = [&] (int w, int h)
+        {
+            juce::Rectangle<int> b (0, 0, w, h);
+            con->checkBounds (b, juce::Rectangle<int> (0, 0, 780, 470), juce::Rectangle<int> (0, 0, 4000, 3000), false, false, false, true);
+            return b;
+        };
+        auto big = clamp (3000, 3000), small = clamp (100, 100), mid = clamp (1000, 1000);
+        expect (big.getWidth() <= 1560 && big.getHeight() <= 940 && small.getWidth() >= 624 && small.getHeight() >= 376
+                && std::fabs ((double) mid.getWidth() / mid.getHeight() - ratio) < 0.01 && std::fabs ((double) big.getWidth() / big.getHeight() - ratio) < 0.01,
+                "size limits 80% to 200% and the proportions stay locked");
+
+        struct Size { int w; const char* name; } sizes[] = { { OgdoadEditor::kMaxWidth, "large" }, { OgdoadEditor::kMinWidth, "small" }, { 1170, "medium" } };
+        for (auto& sz : sizes)
+        {
+            ed->setSize (sz.w, OgdoadEditor::heightForWidth (sz.w));
+            const double scale = (double) sz.w / OgdoadEditor::kWidth;
+            expect (std::fabs (ed->panel.getTransform().getScaleFactor() - scale) < 1.0e-3,
+                    juce::String ("panel scale at ") + sz.name + " is " + juce::String (scale, 2));
+            bool inside = true;
+            for (auto& c : ed->controls())
+            {
+                const auto r = ed->getLocalArea (c.control, c.control->getLocalBounds());
+                inside = inside && ed->getLocalBounds().contains (r) && ! r.isEmpty();
+            }
+            expect (inside, juce::String ("every control inside the window at ") + sz.name + " size");
+            expect ((int) proc.getValueTreeState().state.getProperty (OgdoadEditor::widthProperty, -1) == sz.w, juce::String ("the ") + sz.name + " width is kept in the saved state");
+            runBlocks (proc, 0.4, 512);
+            snapshotTo (*ed, outDir.getChildFile (juce::String ("ogdoad-window-") + sz.name + ".png"));
+        }
     }
 
     // ---- 3: saving and reloading ----------------------------------------------------------------------------------
@@ -228,20 +266,32 @@ int main (int argc, char** argv)
                 "0.1.0 project: Ex on, all trigs in use, CC pulse");
 
         // The Lights | Waves choice is saved with the project; a 0.2.0 project (no choice saved) opens on Lights.
-        a.getValueTreeState().state.setProperty (OgdoadEditor::wavesViewProperty, true, nullptr);
+        a.getValueTreeState().state.setProperty (OgdoadPanel::wavesViewProperty, true, nullptr);
         juce::MemoryBlock withView; a.getStateInformation (withView);
         OgdoadProcessor d; d.setStateInformation (withView.getData(), (int) withView.getSize());
         std::unique_ptr<OgdoadEditor> edD (dynamic_cast<OgdoadEditor*> (d.createEditor()));
-        expect (snapshot (a) == snapshot (d) && edD->isWavesView() && edD->wavesButton.getToggleState(),
+        expect (snapshot (a) == snapshot (d) && edD->isWavesView() && edD->panel.wavesButton.getToggleState(),
                 "Waves view is saved and comes back when the project is reloaded");
         auto xml020 = a.getValueTreeState().copyState().createXml();
-        xml020->removeAttribute (OgdoadEditor::wavesViewProperty.toString());
+        xml020->removeAttribute (OgdoadPanel::wavesViewProperty.toString());
         juce::MemoryBlock v020; juce::AudioProcessor::copyXmlToBinary (*xml020, v020);
         d.setStateInformation (v020.getData(), (int) v020.getSize());           // loaded while the window is open
-        expect (! edD->isWavesView() && edD->lightsButton.getToggleState(), "0.2.0 project (no view saved): the open window goes to Lights");
+        expect (! edD->isWavesView() && edD->panel.lightsButton.getToggleState(), "0.2.0 project (no view saved): the open window goes to Lights");
         OgdoadProcessor e; e.setStateInformation (v020.getData(), (int) v020.getSize());
         std::unique_ptr<OgdoadEditor> edE (dynamic_cast<OgdoadEditor*> (e.createEditor()));
         expect (! edE->isWavesView() && snapshot (a) == snapshot (e), "0.2.0 project opens on Lights with all its settings");
+
+        // The window size is saved with the project (clamped to 80% to 200%); a project with none opens at the design size.
+        expect (edE->getWidth() == OgdoadEditor::kWidth && edE->getHeight() == OgdoadEditor::kHeight, "0.2.0 project opens at the design size");
+        for (auto pr : { std::pair<int, int> { 1170, 1170 }, { 5000, OgdoadEditor::kMaxWidth }, { 100, OgdoadEditor::kMinWidth } })
+        {
+            OgdoadProcessor f; f.getValueTreeState().state.setProperty (OgdoadEditor::widthProperty, pr.first, nullptr);
+            juce::MemoryBlock fb; f.getStateInformation (fb);
+            OgdoadProcessor g2; g2.setStateInformation (fb.getData(), (int) fb.getSize());
+            std::unique_ptr<OgdoadEditor> edF (dynamic_cast<OgdoadEditor*> (g2.createEditor()));
+            expect (edF->getWidth() == pr.second && edF->getHeight() == OgdoadEditor::heightForWidth (pr.second),
+                    "saved window width " + juce::String (pr.first) + " reopens at " + juce::String (pr.second));
+        }
     }
 
     // ---- 4: MIDI --------------------------------------------------------------------------------------------------

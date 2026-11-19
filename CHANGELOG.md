@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.2.1 (window update; not yet tested in Logic)
+## 0.2.2 (resizable window; not yet tested in Logic)
+
+- The window is resizable: drag the corner at the bottom right. It scales from 80% to 200% of the normal size
+  (624 x 376 to 1560 x 940) with its proportions locked; knobs, lights, strips, traces and text all grow together.
+- The window width is saved with the project (not an audio parameter); a project with no size saved, such as one from
+  0.2.1 or earlier, opens at the normal 780 x 470.
+- Nothing else changes: the look at the normal size, the engine, every parameter id, CC and note number, the mapper and
+  its Source menu order are as in 0.2.1.
+
+## 0.2.1 (window update; tested in Logic by Bryn on 2026-11-19: working)
 
 - Brighter, bigger lights: the eight LFO lights and the sixteen Ogdoad Ex lights are larger, have a soft halo, and shine
   clearly already at 30% of their range. The four trig lights now fade out over about a quarter of a second instead of cutting off.
