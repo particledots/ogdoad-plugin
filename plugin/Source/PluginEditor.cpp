@@ -216,8 +216,9 @@ void ExSection::paint (juce::Graphics& g)
     }
     g.setColour (dim);
     g.setFont (font (12.0f));
-    g.drawText ("each output: light + CC number \xc2\xb7 each trig: \"in use\" switch",
-                juce::Rectangle<float> (14.0f, b.getBottom() - 30.0f, b.getWidth() - 28.0f, 18.0f), juce::Justification::centredLeft);
+    g.drawFittedText (juce::String::fromUTF8 ("each output: light + CC number\neach trig: \"in use\" switch"),
+                      juce::Rectangle<float> (14.0f, b.getBottom() - 44.0f, b.getWidth() - 28.0f, 34.0f).toNearestInt(),
+                      juce::Justification::centredLeft, 2);
 }
 
 // ================================================================================================

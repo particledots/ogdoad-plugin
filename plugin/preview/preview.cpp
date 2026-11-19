@@ -102,6 +102,10 @@ int main (int argc, char** argv)
         expect (proc.getTotalNumInputChannels() == 0 && proc.getTotalNumOutputChannels() == 0, "no audio channels");
         expect (param (proc, "rate")->getCurrentValueAsText() == "LFO 1 4.9 Hz", "Rate shows LFO 1's speed (" + param (proc, "rate")->getCurrentValueAsText() + ")");
         expect (param (proc, "modSource")->getCurrentValueAsText() == "LFO 8", "Mod source starts on LFO 8 (as drawn)");
+        using OgdoadParams::speedText;
+        expect (speedText (1.0 / 18.9982) == "19 s" && speedText (160.0) == "160 Hz" && speedText (0.72) == "0.72 Hz"
+                && speedText (1.0 / 2.6) == "2.6 s" && speedText (1.0 / 1500.0) == "25.0 min" && speedText (0.0) == "held",
+                "speed read-outs are short (" + speedText (1.0 / 18.9982) + ", " + speedText (160.0) + ", " + speedText (1.0 / 1500.0) + ")");
         expect (param (proc, "drift")->getCurrentValueAsText() == "Low", "Drift starts on Low");
         expect (juce::roundToInt (param (proc, "outChannel")->convertFrom0to1 (param (proc, "outChannel")->getValue())) == 16, "MIDI out starts on channel 16");
 

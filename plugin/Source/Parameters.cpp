@@ -6,12 +6,12 @@ namespace OgdoadParams
     juce::String speedText (double hz)
     {
         if (hz <= 0.0) return "held";
-        if (hz >= 10.0) return juce::String (hz, 0) + " Hz";
+        if (hz >= 10.0) return juce::String (juce::roundToInt (hz)) + " Hz";
         if (hz >= 1.0)  return juce::String (hz, 1) + " Hz";
         if (hz >= 0.5)  return juce::String (hz, 2) + " Hz";
         const double s = 1.0 / hz;
         if (s < 10.0)  return juce::String (s, 1) + " s";
-        if (s < 60.0)  return juce::String (s, 0) + " s";
+        if (s < 60.0)  return juce::String (juce::roundToInt (s)) + " s";
         return juce::String (s / 60.0, 1) + " min";
     }
 
