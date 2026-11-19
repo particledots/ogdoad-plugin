@@ -163,67 +163,141 @@ void LanesView::paint (juce::Graphics& g)
 }
 
 // ================================================================================================
+ExSection::ExSection (OgdoadProcessor& p) : proc (p)
+{
+    auto& vts = proc.getValueTreeState();
+    onButton.setClickingTogglesState (true);
+    onButton.setTooltip ("Send the sixteen Ogdoad Ex outputs (off: only the eight LFOs are sent)");
+    addAndMakeVisible (onButton);
+    onAtt = std::make_unique<ButtonAttachment> (vts, OgdoadParams::exOn, onButton);
+
+    for (int k = 0; k < ogdoad::kNumTrigs; ++k)
+    {
+        auto& b = useButtons[(size_t) k];
+        b.setButtonText ("in use");
+        b.setClickingTogglesState (true);
+        b.setTooltip ("Off: this output is silent and its triggers pass on to the next one (2, 4, 6, 8)");
+        addAndMakeVisible (b);
+        useAtt[(size_t) k] = std::make_unique<ButtonAttachment> (vts, OgdoadParams::trigUse[k], b);
+    }
+
+    for (int k = 0; k < OgdoadParams::trigModeNames.size(); ++k) modeBox.addItem ("Trig out: " + OgdoadParams::trigModeNames[k], k + 1);
+    modeBox.setTooltip ("How each trigger is sent: a CC pulse (127 for 20 ms), a short note (C1 to D#1), or both");
+    addAndMakeVisible (modeBox);
+    modeAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (vts, OgdoadParams::trigMode, modeBox);
+
+    startTimerHz (30);
+}
+
+void ExSection::resized()
+{
+    onButton.setBounds (212, 14, 44, 22);
+    const juce::Point<int> trigPos[ogdoad::kNumTrigs] = { { 14, 194 }, { 76, 194 }, { 76, 246 }, { 14, 246 } };
+    for (int k = 0; k < ogdoad::kNumTrigs; ++k)
+        useButtons[(size_t) k].setBounds (trigPos[k].x + 16, trigPos[k].y + 26, 44, 16);
+    modeBox.setBounds (14, 300, 242, 24);
+}
+
+void ExSection::timerCallback()
+{
+    for (int k = 0; k < ogdoad::kNumTrigs; ++k)
+    {
+        const unsigned n = proc.trigPulses[(size_t) k].load();
+        if (n != lastPulses[(size_t) k]) { lastPulses[(size_t) k] = n; flashFrames[(size_t) k] = 4; }   // about 130 ms
+        else if (flashFrames[(size_t) k] > 0) --flashFrames[(size_t) k];
+    }
+    repaint();
+}
+
 void ExSection::paint (juce::Graphics& g)
 {
     auto b = getLocalBounds().toFloat().reduced (0.5f);
     g.setColour (exPanel);
     g.fillRoundedRectangle (b, 8.0f);
-    juce::Path border;
-    border.addRoundedRectangle (b, 8.0f);
-    juce::Path dashed;
-    const float dashes[] = { 4.0f, 3.0f };
-    juce::PathStrokeType (1.0f).createDashedStroke (dashed, border, dashes, 2);
-    g.setColour (dim);
-    g.fillPath (dashed);
+    g.setColour (line);
+    g.drawRoundedRectangle (b, 8.0f, 1.0f);
 
     g.setColour (text);
     drawSpaced (g, "ogdoad ex", 14.0f, 30.0f, 15.0f, 2.5f);
 
-    const juce::String badge = "dimmed until milestone 2";
-    auto bf = font (12.0f);
-    const float bw = juce::GlyphArrangement::getStringWidth (bf, badge) + 14.0f;
-    auto badgeBox = juce::Rectangle<float> (b.getRight() - bw - 12.0f, 14.0f, bw, 20.0f);
-    g.setColour (dim);
-    g.drawRoundedRectangle (badgeBox, 4.0f, 0.6f);
-    g.setColour (text);
-    g.setFont (bf);
-    g.drawText (badge, badgeBox, juce::Justification::centred);
+    const bool on = onButton.getToggleState();
+    auto& vts = proc.getValueTreeState();
 
-    struct Group { const char* title; const char* items[4]; };
-    const Group groups[4] = {
-        { "fold \xc3\x97" "2",   { "1", "3", "5", "7" } },
-        { "max / min",           { "2 \xe2\x88\xa8 3", "6 \xe2\x88\xa8 7", "2 \xe2\x88\xa7 3", "6 \xe2\x88\xa7 7" } },
-        { "trig chain",          { "2 \xe2\x86\x92", "4 \xe2\x86\x93", "8", "\xe2\x86\x90 6" } },
-        { "steps",               { "1\xe2\x80\x93" "4", "5\xe2\x80\x93" "8", "odd", "even" } },
-    };
-    const float colW = (b.getWidth() - 28.0f) * 0.5f;
-    for (int gi = 0; gi < 4; ++gi)
+    // One output: a light, its name, and below it the CC number (or note).
+    // active: sending (label bright); lit: the light shows the level.
+    auto cell = [&] (float x, float cy, const juce::String& name, const juce::String& sub, double level, bool bipolar, bool active, bool lit)
     {
-        const float gx = 14.0f + (float) (gi % 2) * colW;
-        const float gy = 58.0f + (float) (gi / 2) * 108.0f;
+        g.setColour (knobFill);
+        g.fillEllipse (x, cy - 5.0f, 10.0f, 10.0f);
+        if (lit)
+        {
+            g.setColour ((bipolar && level < 0.0 ? blue : amber).withAlpha (0.15f + 0.85f * (float) juce::jlimit (0.0, 1.0, std::fabs (level))));
+            g.fillEllipse (x, cy - 5.0f, 10.0f, 10.0f);
+        }
+        g.setColour (active ? text : dim);
+        g.setFont (font (12.5f));
+        g.drawText (name, juce::Rectangle<float> (x + 16.0f, cy - 8.5f, 50.0f, 17.0f), juce::Justification::centredLeft);
+        g.setColour (dim);
+        g.setFont (font (11.0f));
+        g.drawText (sub, juce::Rectangle<float> (x + 16.0f, cy + 7.0f, 52.0f, 14.0f), juce::Justification::centredLeft);
+    };
+
+    auto title = [&] (float x, float y, const char* t)
+    {
         g.setColour (text);
         g.setFont (font (13.0f));
-        g.drawText (juce::String::fromUTF8 (groups[gi].title), juce::Rectangle<float> (gx, gy, colW, 18.0f), juce::Justification::centredLeft);
-        for (int k = 0; k < 4; ++k)
-        {
-            const float ix = gx + (float) (k % 2) * (colW * 0.5f);
-            const float iy = gy + 26.0f + (float) (k / 2) * 30.0f;
-            g.setColour (exText);
-            g.drawEllipse (ix + 1.0f, iy + 3.0f, 10.0f, 10.0f, 1.0f);
-            g.setFont (font (12.5f));
-            g.drawText (juce::String::fromUTF8 (groups[gi].items[k]), juce::Rectangle<float> (ix + 17.0f, iy, colW * 0.5f - 18.0f, 16.0f), juce::Justification::centredLeft);
-        }
+        g.drawText (juce::String::fromUTF8 (t), juce::Rectangle<float> (x, y, 124.0f, 18.0f), juce::Justification::centredLeft);
+    };
+
+    auto value = [&] (int i) { return (double) proc.exValues[(size_t) i].load(); };
+    auto ccText = [] (int i) { return "CC " + juce::String (ogdoad::kExMsbCc[i]); };
+
+    title (14.0f, 52.0f, "fold \xc3\x97" "2");
+    title (142.0f, 52.0f, "max \xe2\x88\xa8  min \xe2\x88\xa7");
+    title (14.0f, 164.0f, "trig chain");
+    title (142.0f, 164.0f, "steps");
+
+    // fold x2: 1, 3 / 5, 7
+    const char* foldNames[4] = { "1", "3", "5", "7" };
+    const float foldX[4] = { 14, 76, 14, 76 }, foldY[4] = { 82, 82, 118, 118 };
+    for (int k = 0; k < 4; ++k) cell (foldX[k], foldY[k], foldNames[k], ccText (k), value (k), false, on, on);
+
+    // max / min: top row max, bottom row min; left 2 and 3, right 6 and 7
+    const char* mmNames[4] = { "2 \xe2\x88\xa8 3", "2 \xe2\x88\xa7 3", "6 \xe2\x88\xa8 7", "6 \xe2\x88\xa7 7" };
+    const float mmX[4] = { 142, 142, 204, 204 }, mmY[4] = { 82, 118, 82, 118 };
+    for (int k = 0; k < 4; ++k)
+        cell (mmX[k], mmY[k], juce::String::fromUTF8 (mmNames[k]), ccText (4 + k), value (4 + k), true, on, on);
+
+    // steps
+    const char* stNames[4] = { "1\xe2\x80\x93" "4", "5\xe2\x80\x93" "8", "odd", "even" };
+    const float stX[4] = { 142, 204, 142, 204 }, stY[4] = { 194, 194, 230, 230 };
+    for (int k = 0; k < 4; ++k)
+        cell (stX[k], stY[k], juce::String::fromUTF8 (stNames[k]), ccText (8 + k), value (8 + k), false, on, on);
+
+    // trig chain, clockwise from top left: 2 -> 4 -> 6 -> 8
+    const int mode = juce::roundToInt (vts.getRawParameterValue (OgdoadParams::trigMode)->load());
+    const char* trNames[4] = { "2 \xe2\x86\x92", "4 \xe2\x86\x93", "\xe2\x86\x90 6", "8" };
+    const char* noteNames[4] = { "C1", "C#1", "D1", "D#1" };
+    const float trX[4] = { 14, 76, 76, 14 }, trY[4] = { 194, 194, 246, 246 };
+    for (int k = 0; k < 4; ++k)
+    {
+        const bool inUse = useButtons[(size_t) k].getToggleState();
+        const bool flash = proc.trigOn[(size_t) k].load() || flashFrames[(size_t) k] > 0;
+        juce::String sub = mode == 0 ? "CC " + juce::String (ogdoad::kTrigCc[k])
+                         : mode == 1 ? "note " + juce::String (noteNames[k])
+                         : juce::String (ogdoad::kTrigCc[k]) + juce::String::fromUTF8 (" \xc2\xb7 ") + noteNames[k];
+        cell (trX[k], trY[k], juce::String::fromUTF8 (trNames[k]), sub, 1.0, false, on && inUse, on && inUse && flash);
     }
+
     g.setColour (dim);
-    g.setFont (font (12.0f));
-    g.drawFittedText (juce::String::fromUTF8 ("each output: light + CC number\neach trig: \"in use\" switch"),
-                      juce::Rectangle<float> (14.0f, b.getBottom() - 44.0f, b.getWidth() - 28.0f, 34.0f).toNearestInt(),
-                      juce::Justification::centredLeft, 2);
+    g.setFont (font (11.5f));
+    g.drawText ("switched off: silent, its triggers pass on to the next",
+                juce::Rectangle<float> (14.0f, 330.0f, 250.0f, 16.0f), juce::Justification::centredLeft);
 }
 
 // ================================================================================================
 OgdoadEditor::OgdoadEditor (OgdoadProcessor& p)
-    : AudioProcessorEditor (&p), proc (p), lanesView (p)
+    : AudioProcessorEditor (&p), proc (p), lanesView (p), exSection (p)
 {
     setLookAndFeel (&lnf);
     auto& vts = proc.getValueTreeState();
@@ -283,7 +357,11 @@ std::vector<OgdoadEditor::ControlInfo> OgdoadEditor::controls()
 {
     return { { &rateKnob, OgdoadParams::rate }, { &modKnob, OgdoadParams::modAmount }, { &modSourceBox, OgdoadParams::modSource },
              { &holdButton, OgdoadParams::hold }, { &pedalButton, OgdoadParams::holdPedal }, { &driftBox, OgdoadParams::drift },
-             { &channelBox, OgdoadParams::outChannel } };
+             { &channelBox, OgdoadParams::outChannel },
+             { &exSection.onButton, OgdoadParams::exOn },
+             { &exSection.useButtons[0], OgdoadParams::trigUse[0] }, { &exSection.useButtons[1], OgdoadParams::trigUse[1] },
+             { &exSection.useButtons[2], OgdoadParams::trigUse[2] }, { &exSection.useButtons[3], OgdoadParams::trigUse[3] },
+             { &exSection.modeBox, OgdoadParams::trigMode } };
 }
 
 void OgdoadEditor::paint (juce::Graphics& g)
@@ -332,7 +410,7 @@ void OgdoadEditor::resized()
     driftBox.setBounds (cx + 144, top + 42, cw - 144, 26);
 
     lanesView.setBounds (left, top + 98, 450, LanesView::kRowHeight * ogdoad::kNumLanes);
-    exSection.setBounds (490, top, getWidth() - 490 - 20, 316);
+    exSection.setBounds (490, top, ExSection::kWidth, ExSection::kHeight);
 
     const int fy = getHeight() - 38;
     channelBox.setBounds (130, fy + 7, 56, 24);

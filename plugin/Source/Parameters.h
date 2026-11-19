@@ -1,7 +1,8 @@
 // The list of controls Logic can see and automate.
 //
 // The short ids below are what Logic stores in saved projects and automation. They were chosen once, before the
-// first build, and are never renamed. Milestone 2 adds new ids (trigUse1..trigUse4, trigMode, ...) after these.
+// first build, and are never renamed. Milestone 2 (0.2.0) added exOn, trigUse1..trigUse4 and trigMode after them;
+// those are fixed from now on too.
 
 #pragma once
 
@@ -17,8 +18,14 @@ namespace OgdoadParams
     inline constexpr const char* drift      = "drift";       // menu: Off, Low, More
     inline constexpr const char* outChannel = "outChannel";  // MIDI channel the CC goes out on, 1..16
 
+    // Ogdoad Ex (milestone 2)
+    inline constexpr const char* exOn       = "exOn";        // send the sixteen Ex outputs
+    inline constexpr const char* trigUse[4] = { "trigUse1", "trigUse2", "trigUse3", "trigUse4" };  // trig 2, 4, 6, 8 "in use"
+    inline constexpr const char* trigMode   = "trigMode";    // menu: CC pulse, Note, Both
+
     inline const juce::StringArray modSourceNames { "Off", "LFO 1", "LFO 2", "LFO 3", "LFO 4", "LFO 5", "LFO 6", "LFO 7", "LFO 8", "Mod wheel" };
     inline const juce::StringArray driftNames { "Off", "Low", "More" };
+    inline const juce::StringArray trigModeNames { "CC pulse", "Note", "Both" };
 
     juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0 (milestone 2: Ogdoad Ex; built and checked, waiting for the test in Logic)
+
+- Ogdoad Ex comes alive in the same window: sixteen outputs, each with a light and its CC number.
+  - fold ×2 (LFO 1, 3, 5, 7) on CC 12-15 / 44-47; max and min of LFO 2 and 3 and of 6 and 7 on CC 16-19 / 48-51;
+    steps (1-4, 5-8, odd, even) on CC 28-31 / 60-63; all 14-bit like the LFOs.
+  - trig chain: a trigger each time LFO 2, 4, 6 or 8 starts rising; an "in use" switch under each (ids
+    `trigUse1`-`trigUse4`): off = silent, triggers pass on to the next (2 → 4 → 6 → 8).
+  - Trig out (id `trigMode`): CC pulse (CC 102-105, 127 for 20 ms), Note (36-39, C1 to D♯1, velocity 100, 20 ms) or Both.
+  - On switch (id `exOn`): Ex off sends exactly what 0.1.0 sent.
+- A trigger pulse or note always ends, also when the mode, the channel or Ex On is changed during it, on bypass and on reset.
+- Ogdoad Mapper 0.2.0: the Source menu adds Fold 1/3/5/7, Max/Min 2+3 and 6+7, Trig 2/4/6/8 and Steps 1-4/5-8/odd/even
+  after the 0.1.0 entries; a Trig lane jumps from Min to Max for 20 ms; trigger notes pass through.
+- README, CHANGELOG and INSTALL.txt finished for 0.2.0. Projects saved with 0.1.0 load with their settings and Ex at its defaults.
+
 ## 0.1.0 (milestone 1, tested in Logic on 2026-11-19: working)
 
 - First build: AU + VST3 MIDI effect, universal (Apple Silicon + Intel), macOS 11 or newer, ad-hoc signed.

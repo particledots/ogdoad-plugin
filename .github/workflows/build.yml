@@ -32,6 +32,7 @@ jobs:
           fi
           echo "::notice::ENGINE-TEST: $(grep -h 'engine tests:' engine-test.log | head -n 1)"
           echo "::notice::CPU: $(grep -ho 'CPU: .*' engine-test.log | head -n 1)"
+          echo "::notice::MIDI: $(grep -ho 'MIDI: .*' engine-test.log | head -n 1)"
           echo "::notice::MAPPER-TEST: $(grep -h 'mapper tests:' engine-test.log | head -n 1)"
           grep -q "mapper tests: .* checks passed" engine-test.log || { echo "::error::MAPPER-TEST: no pass line found"; exit 1; }
 
@@ -167,7 +168,7 @@ jobs:
           cp auval.log Ogdoad-macOS/auval.log 2>/dev/null || true
           cp pluginval-AU.log pluginval-VST3.log Ogdoad-macOS/ 2>/dev/null || true
           cat > Ogdoad-macOS/INSTALL.txt <<'TXT'
-          OGDOAD: install and set up
+          OGDOAD 0.2.0: install and set up
 
           INSTALL (once per Mac)
           1. Unzip.
@@ -177,23 +178,34 @@ jobs:
              installs the Audio Unit (Ogdoad.component) for all users. It does not install the VST3.
           4. Open Logic. If Ogdoad is missing: Settings > Plug-in Manager, select Ogdoad, Reset & Rescan Selection.
 
-          THE MAPPER (once per Mac)
-          Logic has no CV, so Ogdoad sends its eight LFOs as MIDI CC, and a Scripter script turns them into knob moves.
+          THE MAPPER (once per Mac; again when updating from 0.1.0)
+          Logic has no CV, so Ogdoad sends its eight LFOs and the sixteen Ogdoad Ex outputs as MIDI CC, and a
+          Scripter script turns them into knob moves.
           5. Make a Software Instrument track. MIDI FX slot 1: Audio Units > particledots > Ogdoad. MIDI FX slot 2: Scripter.
           6. In Scripter, click "Open Script in Editor". Select everything in the editor and delete it.
           7. Open "Ogdoad Mapper (paste into Scripter).txt" from this folder, select all, copy, paste it into the
              Script Editor, click "Run Script", and close the editor.
-          8. In Scripter's preset menu (top of its window) choose "Save As..." and call it Ogdoad Mapper.
-             From now on "Ogdoad Mapper" is in Scripter's preset menu on this Mac.
+          8. In Scripter's preset menu (top of its window) choose "Save As..." and call it Ogdoad Mapper
+             (replace the old one if asked). From now on "Ogdoad Mapper" is in Scripter's preset menu on this Mac.
+             Tracks made with 0.1.0 keep the old mapper until you choose the Ogdoad Mapper preset on them again.
 
           EACH TRACK
           9.  MIDI FX slot 1: Ogdoad. MIDI FX slot 2: Scripter with the Ogdoad Mapper preset.
-          10. In Scripter: set "Lane 1 source" to an LFO (1 is fastest, 8 slowest). Open "Lane 1 target", choose
-              "Learn plug-in parameter", then move once the knob you want to modulate (on the instrument, or on an audio
-              effect on this track).
+          10. In Scripter: set "Lane 1 source" to an LFO (1 is fastest, 8 slowest) or an Ex output (Fold, Max, Min,
+              Trig, Steps). Open "Lane 1 target", choose "Learn plug-in parameter", then move once the knob you want
+              to modulate (on the instrument, or on an audio effect on this track).
           11. "Lane 1 min %" and "Lane 1 max %" set how far that knob sweeps (max below min turns it upside down).
+              A Trig source jumps the knob from min to max for 20 ms at each trigger.
           Up to 8 lanes per Scripter; for more, add a second Scripter with the same preset below the first.
-          Ogdoad's CC (channel 16, CC 20-27 and 52-59) stops at the mapper; your notes and everything else pass through.
+          Ogdoad's CC (channel 16: CC 12-31, 44-63 and 102-105) stops at the mapper; your notes and everything else
+          pass through.
+
+          OGDOAD EX
+          - On: sends the sixteen Ex outputs. Off: only the eight LFOs are sent (less MIDI on the track).
+          - Trig out: CC pulse (CC 102-105), Note (C1, C#1, D1, D#1 = notes 36-39, played by the track's instrument,
+            e.g. Drum Machine Designer's kick, rim, snare, clap), or Both.
+          - "in use" under each trig output: switched off, that output is silent and its triggers pass on to the next
+            (2 -> 4 -> 6 -> 8). Switch off 2, 4 and 6 and output 8 carries all four.
           TXT
           # Easy installer for Logic (double-click; same file in every plugin)
           cp "tools/mapper/Ogdoad-Mapper.js" "Ogdoad-macOS/Ogdoad Mapper (paste into Scripter).txt"

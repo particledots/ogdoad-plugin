@@ -1,6 +1,7 @@
 // The Ogdoad engine: eight free-running triangle LFOs, fastest at the top, slowest at the bottom,
 // with one global Rate, a Mod amount (-1 to +1) fed by a chosen source (one of the LFOs, or the mod wheel),
-// Hold, and a slow random Drift so the eight never repeat exactly.
+// Hold, and a slow random Drift so the eight never repeat exactly. Ogdoad Ex adds sixteen more outputs worked out from
+// the eight (fold x2, max / min, steps, trig chain; see ExOutputs.h).
 //
 // Plain C++17. Nothing here knows about JUCE, Logic or MIDI devices; the plugin hands in the control values and
 // the incoming mod wheel / sustain pedal, and gets back CC messages (see CcStream.h) placed at exact sample positions.
@@ -10,6 +11,7 @@
 #pragma once
 
 #include "ogdoad/CcStream.h"
+#include "ogdoad/ExOutputs.h"
 #include "ogdoad/Rates.h"
 
 #include <array>
@@ -31,6 +33,11 @@ namespace ogdoad
         bool   hold      = false;   // freeze all eight
         bool   holdPedal = false;   // also freeze while the sustain pedal is down
         int    drift     = 1;       // 0 off, 1 low, 2 more
+
+        // Ogdoad Ex
+        bool   exOn      = true;    // send the sixteen Ex outputs
+        bool   trigUse[kNumTrigs] { true, true, true, true };   // "in use": off = silent, triggers pass on to the next
+        int    trigMode  = 0;       // 0 CC pulse, 1 note, 2 both
     };
 
     // Something that happened in the incoming MIDI, at a sample position inside the block.
@@ -66,6 +73,15 @@ namespace ogdoad
 
         CcStream& ccStream()                { return cc; }
 
+        // Ogdoad Ex, for the panel and the tests.
+        double exValue (int i) const        { return exValues[(std::size_t) i]; }   // fold / steps 0..1, max / min -1..+1
+        bool   trigOn (int k) const         { return trig[(std::size_t) k].ccOn || trig[(std::size_t) k].noteOn; }
+        uint64_t trigPulses (int k) const   { return trig[(std::size_t) k].pulses; }   // pulses started (sent) so far
+        uint64_t trigArrivals (int k) const { return trig[(std::size_t) k].arrivals; } // ticks a trigger reached output k
+
+        // Ends any trigger pulse or note now (used when the plugin is bypassed), so nothing is left hanging.
+        void closeTriggers (int offset, CcSink& sink);
+
     private:
         void tick (int offset, CcSink& sink);
         double driftOctaves (int lane, double tSeconds);
@@ -83,6 +99,14 @@ namespace ogdoad
         // Drift: per lane, a smooth random wander between points drawn at fixed times.
         struct Wander { double t0 = 0, t1 = 0, a = 0, b = 0; uint32_t rng = 1; };
         std::array<Wander, kNumLanes> wander {};
+
+        void tickEx (int offset, CcSink& sink, const std::array<bool, kNumLanes>& wrapped);
+        void endPulse (int k, int offset, CcSink& sink);
+
+        std::array<double, kNumExSmooth> exValues {};
+        struct Trig { int ticksLeft = 0; bool ccOn = false, noteOn = false; uint64_t pulses = 0, arrivals = 0; };
+        std::array<Trig, kNumTrigs> trig {};
+        int pulseTicks = 30;
 
         CcStream cc;
     };

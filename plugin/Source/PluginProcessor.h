@@ -1,6 +1,7 @@
 // What Logic sees: a MIDI effect (AU type aumi) with no audio. Incoming MIDI passes through untouched; the eight
-// LFOs are added as smooth 14-bit CC on the chosen channel (16 by default). The incoming mod wheel (CC 1) and
-// sustain pedal (CC 64) are also read, for the Mod source menu and "Pedal holds".
+// LFOs and the Ogdoad Ex outputs are added as smooth 14-bit CC on the chosen channel (16 by default), the Ex triggers
+// as CC pulses and/or short notes. The incoming mod wheel (CC 1) and sustain pedal (CC 64) are also read, for the
+// Mod source menu and "Pedal holds".
 
 #pragma once
 
@@ -22,7 +23,7 @@ public:
     void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
-    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}   // MIDI passes, nothing added
+    void processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;   // MIDI passes; a trigger still on is ended
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
@@ -50,16 +51,40 @@ public:
     std::atomic<bool> held { false };
     std::atomic<int> blocksDone { 0 };
 
+    // For the panel: Ogdoad Ex.
+    std::array<std::atomic<float>, ogdoad::kNumExSmooth> exValues {};
+    std::array<std::atomic<bool>, ogdoad::kNumTrigs> trigOn {};
+    std::array<std::atomic<unsigned>, ogdoad::kNumTrigs> trigPulses {};
+
 private:
     struct Sink : ogdoad::CcSink
     {
         juce::MidiBuffer* out = nullptr;
         int channel = 16;
+        // A trigger pulse or note ends on the channel it started on, even if the channel was changed in between.
+        std::array<int, 128> pulseChannel {}, noteChannel {};
         void cc (int offset, int number, int value) override
         {
-            out->addEvent (juce::MidiMessage::controllerEvent (channel, number, value), offset);
+            int ch = channel;
+            if (number >= 102 && number <= 105)
+            {
+                if (value > 0) pulseChannel[(size_t) number] = channel;
+                else if (pulseChannel[(size_t) number] > 0) ch = pulseChannel[(size_t) number];
+            }
+            out->addEvent (juce::MidiMessage::controllerEvent (ch, number, value), offset);
+        }
+        void note (int offset, int number, int velocity) override
+        {
+            if (velocity > 0)
+            {
+                noteChannel[(size_t) number] = channel;
+                out->addEvent (juce::MidiMessage::noteOn (channel, number, (juce::uint8) velocity), offset);
+            }
+            else
+                out->addEvent (juce::MidiMessage::noteOff (noteChannel[(size_t) number] > 0 ? noteChannel[(size_t) number] : channel, number), offset);
         }
     };
+    void publishToPanel();
 
     juce::AudioProcessorValueTreeState apvts;
     std::atomic<float>* rateParam = nullptr;
@@ -69,6 +94,9 @@ private:
     std::atomic<float>* holdPedalParam = nullptr;
     std::atomic<float>* driftParam = nullptr;
     std::atomic<float>* outChannelParam = nullptr;
+    std::atomic<float>* exOnParam = nullptr;
+    std::array<std::atomic<float>*, ogdoad::kNumTrigs> trigUseParam {};
+    std::atomic<float>* trigModeParam = nullptr;
 
     ogdoad::Engine engine;
     std::vector<ogdoad::InputEvent> inputs;

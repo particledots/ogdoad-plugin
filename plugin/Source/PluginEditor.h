@@ -1,6 +1,7 @@
-// The Ogdoad window, as approved in the draft (2026-11-18): Rate, Mod, Mod source, Hold, Pedal, Drift and the
-// eight LFO lanes on the left; the Ogdoad Ex section on the right, dimmed until milestone 2; the MIDI out
-// channel and the version at the bottom. Milestone 2 brings the Ex section to life in this same window.
+// The Ogdoad window, as approved in the drafts (2026-11-18, and 2026-11-19 for Ogdoad Ex): Rate, Mod, Mod source,
+// Hold, Pedal, Drift and the eight LFO lanes on the left; the Ogdoad Ex section on the right (sixteen outputs with
+// their lights and CC numbers, the On switch, the trig "in use" switches and Trig out); the MIDI out channel and the
+// version at the bottom.
 
 #pragma once
 
@@ -31,7 +32,7 @@ public:
     void positionComboBoxText (juce::ComboBox&, juce::Label&) override;
     void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&, bool over, bool down) override;
     juce::Font getComboBoxFont (juce::ComboBox&) override { return juce::Font (juce::FontOptions (12.5f)); }
-    juce::Font getTextButtonFont (juce::TextButton&, int) override { return juce::Font (juce::FontOptions (12.5f)); }
+    juce::Font getTextButtonFont (juce::TextButton&, int h) override { return juce::Font (juce::FontOptions (h < 20 ? 11.0f : 12.5f)); }
     juce::Font getPopupMenuFont() override { return juce::Font (juce::FontOptions (13.0f)); }
 };
 
@@ -49,11 +50,31 @@ private:
     OgdoadProcessor& proc;
 };
 
-// Ogdoad Ex: shown, dimmed, until milestone 2.
-class ExSection : public juce::Component
+// Ogdoad Ex: the sixteen outputs (light, name, CC number), the On switch, the four "in use" switches and Trig out.
+class ExSection : public juce::Component, private juce::Timer
 {
 public:
+    explicit ExSection (OgdoadProcessor& p);
+    ~ExSection() override { stopTimer(); }
     void paint (juce::Graphics&) override;
+    void resized() override;
+
+    juce::TextButton onButton { "On" };
+    std::array<juce::TextButton, ogdoad::kNumTrigs> useButtons;
+    juce::ComboBox modeBox;
+
+    static constexpr int kWidth = 270, kHeight = 350;
+
+private:
+    void timerCallback() override;
+    OgdoadProcessor& proc;
+    std::array<unsigned, ogdoad::kNumTrigs> lastPulses {};
+    std::array<int, ogdoad::kNumTrigs> flashFrames {};
+
+    using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
+    std::unique_ptr<ButtonAttachment> onAtt;
+    std::array<std::unique_ptr<ButtonAttachment>, ogdoad::kNumTrigs> useAtt;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAtt;
 };
 
 class OgdoadEditor : public juce::AudioProcessorEditor

@@ -1,7 +1,7 @@
 // Turns slowly or quickly moving values into a smooth, thin stream of MIDI CC messages.
 //
 // Each output ("lane") is sent as a standard 14-bit CC pair: a coarse part (MSB) and a fine part (LSB), 16,384 steps
-// instead of 128. LFO 1..8 use CC 20..27 (coarse) and CC 52..59 (fine).
+// instead of 128. LFO 1..8 use CC 20..27 (coarse) and CC 52..59 (fine); the Ogdoad Ex outputs are in ExOutputs.h.
 //
 // Rules, per lane:
 //   - send only when the 14-bit value has changed;
@@ -21,6 +21,7 @@ namespace ogdoad
     {
         virtual ~CcSink() = default;
         virtual void cc (int sampleOffset, int ccNumber, int value) = 0;
+        virtual void note (int /*sampleOffset*/, int /*noteNumber*/, int /*velocity, 0 = note off*/) {}
     };
 
     inline constexpr int kMaxCcLanes = 32;

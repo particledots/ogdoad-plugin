@@ -1,15 +1,17 @@
 // Offline window picture and plugin checks (not part of the plugin; only built with -DOGDOAD_BUILD_PREVIEW=ON).
 //   1. draws the window to picture files (default, running, held);
-//   2. checks that all 7 ids exist, each has exactly one control, and each control moves exactly its own parameter;
-//   3. checks saving and reloading;
+//   2. checks that all 13 ids exist, each has exactly one control, and each control moves exactly its own parameter;
+//   3. checks saving and reloading (and loading a 0.1.0 project);
 //   4. checks the MIDI: notes and other messages pass through untouched, the LFOs come out as CC 20-27 / 52-59 on the
-//      chosen channel, the mod wheel and sustain pedal work, bypass adds nothing, and Logic's block size makes no difference.
+//      chosen channel, the mod wheel and sustain pedal work, bypass adds nothing, and Logic's block size makes no difference;
+//   5. checks Ogdoad Ex in the real plugin: the sixteen outputs, Ex off, the trig chain, CC pulses, notes, both.
 // Usage: OgdoadPreview <folder for the pictures>
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <functional>
 #include <iostream>
 #include <map>
 #include <set>
@@ -77,12 +79,21 @@ namespace
         return out;
     }
 
-    bool isOgdoadCc (const juce::MidiMessage& m)
+    bool isLfoCc (const juce::MidiMessage& m)
     {
         if (! m.isController()) return false;
         const int n = m.getControllerNumber();
         return (n >= 20 && n <= 27) || (n >= 52 && n <= 59);
     }
+
+    bool isTrigOff (const juce::MidiMessage& m)
+    {
+        return (m.isController() && m.getControllerNumber() >= 102 && m.getControllerNumber() <= 105 && m.getControllerValue() == 0)
+            || (m.isNoteOff() && m.getNoteNumber() >= 36 && m.getNoteNumber() <= 39);
+    }
+
+    const char* allIds[] = { "rate", "modAmount", "modSource", "hold", "holdPedal", "drift", "outChannel",
+                             "exOn", "trigUse1", "trigUse2", "trigUse3", "trigUse4", "trigMode" };
 }
 
 int main (int argc, char** argv)
@@ -95,9 +106,13 @@ int main (int argc, char** argv)
     {
         OgdoadProcessor proc;
         proc.prepareToPlay (48000.0, 512);
-        expect (proc.getParameters().size() == 7, "7 parameters");
-        for (auto id : { "rate", "modAmount", "modSource", "hold", "holdPedal", "drift", "outChannel" })
+        expect (proc.getParameters().size() == 13, "13 parameters");
+        for (auto id : allIds)
             expect (param (proc, id) != nullptr, juce::String ("parameter id ") + id);
+        expect (param (proc, "exOn")->getValue() == 1.0f, "Ex starts on");
+        expect (param (proc, "trigUse1")->getValue() == 1.0f && param (proc, "trigUse2")->getValue() == 1.0f
+                && param (proc, "trigUse3")->getValue() == 1.0f && param (proc, "trigUse4")->getValue() == 1.0f, "all four trigs start in use");
+        expect (param (proc, "trigMode")->getCurrentValueAsText() == "CC pulse", "Trig out starts on CC pulse");
         expect (proc.isMidiEffect() && proc.acceptsMidi() && proc.producesMidi(), "a MIDI effect");
         expect (proc.getTotalNumInputChannels() == 0 && proc.getTotalNumOutputChannels() == 0, "no audio channels");
         expect (param (proc, "rate")->getCurrentValueAsText() == "LFO 1 4.9 Hz", "Rate shows LFO 1's speed (" + param (proc, "rate")->getCurrentValueAsText() + ")");
@@ -118,7 +133,7 @@ int main (int argc, char** argv)
         auto controls = ed->controls();
         std::set<juce::String> ids;
         for (auto& c : controls) ids.insert (c.paramId);
-        expect (controls.size() == 7 && ids.size() == 7, "every parameter has exactly one control");
+        expect (controls.size() == 13 && ids.size() == 13, "every parameter has exactly one control");
         for (auto& c : controls)
         {
             auto before = snapshot (proc);
@@ -129,8 +144,11 @@ int main (int argc, char** argv)
             int changed = 0; juce::String which;
             for (auto& kv : after) if (kv.second != before[kv.first]) { ++changed; which = kv.first; }
             expect (changed == 1 && which == c.paramId, "control for " + c.paramId + " moves only " + c.paramId + " (moved " + which + ")");
-            expect (c.control->isVisible() && ! c.control->getBounds().isEmpty()
-                    && ed->getLocalBounds().contains (c.control->getBounds()), "control for " + c.paramId + " is visible inside the window");
+            const auto inWindow = ed->getLocalArea (c.control, c.control->getLocalBounds());
+            bool visible = true;
+            for (auto* x = c.control; x != nullptr && x != ed.get(); x = x->getParentComponent()) visible = visible && x->isVisible();
+            expect (visible && ! inWindow.isEmpty() && ed->getLocalBounds().contains (inWindow),
+                    "control for " + c.paramId + " is visible inside the window");
         }
 
         // Back to defaults, run for a while, picture of the moving window.
@@ -146,8 +164,19 @@ int main (int argc, char** argv)
         // Combo text as drawn.
         std::vector<juce::ComboBox*> boxes;
         for (auto& c : ed->controls()) if (auto* b = dynamic_cast<juce::ComboBox*> (c.control)) boxes.push_back (b);
-        expect (boxes.size() == 3 && boxes[0]->getText() == "Mod source: LFO 8" && boxes[1]->getText() == "Drift: low" && boxes[2]->getText() == "16",
-                "menus read 'Mod source: LFO 8', 'Drift: low', '16'");
+        expect (boxes.size() == 4 && boxes[0]->getText() == "Mod source: LFO 8" && boxes[1]->getText() == "Drift: low" && boxes[2]->getText() == "16"
+                && boxes[3]->getText() == "Trig out: CC pulse",
+                "menus read 'Mod source: LFO 8', 'Drift: low', '16', 'Trig out: CC pulse'");
+
+        // Two more pictures: trig 4 switched off with Trig out on Note; and Ex switched off.
+        setParam (proc, "trigUse2", 0.0f); setParam (proc, "trigMode", 1.0f);
+        runBlocks (proc, 2.0, 512);
+        snapshotTo (*ed, outDir.getChildFile ("ogdoad-window-ex-cascade-note.png"));
+        setParam (proc, "trigUse2", 1.0f); setParam (proc, "trigMode", 0.0f);
+        setParam (proc, "exOn", 0.0f);
+        runBlocks (proc, 0.3, 512);
+        snapshotTo (*ed, outDir.getChildFile ("ogdoad-window-ex-off.png"));
+        setParam (proc, "exOn", 1.0f);
     }
 
     // ---- 3: saving and reloading ----------------------------------------------------------------------------------
@@ -155,14 +184,32 @@ int main (int argc, char** argv)
         OgdoadProcessor a;
         setParam (a, "rate", 0.31f); setParam (a, "modAmount", -0.4f); setParam (a, "modSource", 9.0f);
         setParam (a, "hold", 1.0f); setParam (a, "holdPedal", 1.0f); setParam (a, "drift", 2.0f); setParam (a, "outChannel", 5.0f);
+        setParam (a, "exOn", 0.0f); setParam (a, "trigUse2", 0.0f); setParam (a, "trigUse4", 0.0f); setParam (a, "trigMode", 2.0f);
         juce::MemoryBlock mb; a.getStateInformation (mb);
         OgdoadProcessor b; b.setStateInformation (mb.getData(), (int) mb.getSize());
         expect (snapshot (a) == snapshot (b), "every setting comes back after save and reload");
+
+        // A project saved with 0.1.0 (only the first 7 settings): they come back, and Ex starts as new.
+        auto xml = a.getValueTreeState().copyState().createXml();
+        for (auto* child = xml->getFirstChildElement(); child != nullptr;)
+        {
+            auto* next = child->getNextElement();
+            const auto id = child->getStringAttribute ("id");
+            if (id == "exOn" || id.startsWith ("trig")) xml->removeChildElement (child, true);
+            child = next;
+        }
+        juce::MemoryBlock old; juce::AudioProcessor::copyXmlToBinary (*xml, old);
+        OgdoadProcessor c; c.setStateInformation (old.getData(), (int) old.getSize());
+        expect (param (c, "rate")->getValue() == param (a, "rate")->getValue() && param (c, "outChannel")->getValue() == param (a, "outChannel")->getValue(),
+                "0.1.0 project: its settings come back");
+        expect (param (c, "exOn")->getValue() == 1.0f && param (c, "trigUse2")->getValue() == 1.0f && param (c, "trigMode")->getValue() == 0.0f,
+                "0.1.0 project: Ex on, all trigs in use, CC pulse");
     }
 
     // ---- 4: MIDI --------------------------------------------------------------------------------------------------
     {
         OgdoadProcessor p; p.prepareToPlay (48000.0, 512);
+        setParam (p, "exOn", 0.0f);                  // first the eight LFOs alone, exactly as in 0.1.0
         std::vector<Msg> in {
             { 100, juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100) },
             { 2000, juce::MidiMessage::controllerEvent (1, 7, 90) },
@@ -173,22 +220,23 @@ int main (int argc, char** argv)
         std::vector<Msg> others; int lfoCc = 0; bool channelOk = true; std::set<int> numbers;
         for (auto& e : out)
         {
-            if (isOgdoadCc (e.m) && e.m.getChannel() == 16) { ++lfoCc; numbers.insert (e.m.getControllerNumber()); }
+            if (isLfoCc (e.m) && e.m.getChannel() == 16) { ++lfoCc; numbers.insert (e.m.getControllerNumber()); }
             else others.push_back (e);
-            if (isOgdoadCc (e.m) && e.m.getChannel() != 16) channelOk = false;
+            if (isLfoCc (e.m) && e.m.getChannel() != 16) channelOk = false;
         }
         bool passOk = others.size() == in.size();
         for (size_t i = 0; passOk && i < in.size(); ++i)
             passOk = others[i].sample == in[i].sample && others[i].m.getDescription() == in[i].m.getDescription();
         expect (passOk, "notes, CC and pitch bend pass through unchanged, at the same moment");
         expect (lfoCc > 1000 && channelOk, "the LFOs come out as CC on channel 16 (" + juce::String (lfoCc) + " messages in 2 s)");
-        expect (numbers.size() == 16, "CC 20-27 and 52-59 all used");
+        expect (numbers.size() == 16, "Ex off: CC 20-27 and 52-59 all used, nothing else");
+        setParam (p, "exOn", 1.0f);
 
         setParam (p, "outChannel", 3.0f);
         auto out3 = runBlocks (p, 0.5, 512);
         bool all3 = ! out3.empty();
-        for (auto& e : out3) all3 = all3 && e.m.getChannel() == 3;
-        expect (all3, "MIDI out channel 3: the CC moves to channel 3");
+        for (auto& e : out3) all3 = all3 && (e.m.getChannel() == 3 || (isTrigOff (e.m) && e.m.getChannel() == 16));
+        expect (all3, "MIDI out channel 3: the CC moves to channel 3 (a pulse already on ends on 16)");
         setParam (p, "outChannel", 16.0f);
 
         // Mod wheel through Mod fully anticlockwise: stall. The wheel itself still passes through.
@@ -211,9 +259,11 @@ int main (int argc, char** argv)
         expect (! p.held.load(), "pedal up releases");
         setParam (p, "holdPedal", 0.0f);
 
-        // Bypass: MIDI passes, nothing added.
+        // Bypass: MIDI passes, nothing added (except the end of a trigger that was on).
         auto byp = runBlocks (p, 0.5, 512, { { 50, juce::MidiMessage::noteOn (1, 64, (juce::uint8) 80) } }, true);
-        expect (byp.size() == 1 && byp[0].m.isNoteOn(), "bypassed: notes pass, no CC added");
+        int bypNotes = 0; bool bypOther = true;
+        for (auto& e : byp) { if (e.m.isNoteOn() && e.m.getNoteNumber() == 64) ++bypNotes; else bypOther = bypOther && isTrigOff (e.m); }
+        expect (bypNotes == 1 && bypOther, "bypassed: notes pass, no CC added");
 
         // Hold button: silent after the last value.
         setParam (p, "hold", 1.0f);
@@ -238,6 +288,75 @@ int main (int argc, char** argv)
             for (size_t i = 0; same && i < o.size(); ++i) same = o[i].sample == ref[i].sample && o[i].m.getDescription() == ref[i].m.getDescription();
             expect (same, "same CC stream with block size " + (b > 0 ? juce::String (b) : juce::String ("random")));
         }
+    }
+
+    // ---- 5: Ogdoad Ex in the real plugin --------------------------------------------------------------------------
+    {
+        auto run = [] (std::function<void (OgdoadProcessor&)> setup, double seconds)
+        {
+            OgdoadProcessor p; p.prepareToPlay (48000.0, 512);
+            setup (p);
+            auto out = runBlocks (p, seconds, 512);
+            setParam (p, "hold", 1.0f);
+            auto tail = runBlocks (p, 0.1, 512);
+            out.insert (out.end(), tail.begin(), tail.end());
+            return out;
+        };
+        auto count = [] (const std::vector<Msg>& v, std::function<bool (const juce::MidiMessage&)> f)
+        { int n = 0; for (auto& e : v) if (f (e.m)) ++n; return n; };
+
+        // Default: all sixteen outputs, CC pulses, everything on channel 16.
+        auto def = run ([] (OgdoadProcessor&) {}, 10.0);
+        std::set<int> nums; bool ch16 = true;
+        for (auto& e : def) { if (e.m.isController()) nums.insert (e.m.getControllerNumber()); ch16 = ch16 && e.m.getChannel() == 16; }
+        std::set<int> want;
+        for (int n = 12; n <= 31; ++n) { want.insert (n); want.insert (n + 32); }
+        for (int n = 102; n <= 105; ++n) want.insert (n);
+        expect (nums == want, "Ex on: LFOs, the twelve Ex CC pairs (12-19, 28-31 / 44-51, 60-63) and trig CC 102-105, nothing else");
+        expect (ch16, "Ex: everything on channel 16");
+        expect (count (def, [] (auto& m) { return m.isNoteOnOrOff(); }) == 0, "CC pulse mode: no notes");
+        bool alt = true; std::map<int, int> state;
+        for (auto& e : def)
+            if (e.m.isController() && e.m.getControllerNumber() >= 102)
+            {
+                const int n = e.m.getControllerNumber(), v = e.m.getControllerValue();
+                alt = alt && (v == 127 ? state[n] == 0 : (v == 0 && state[n] == 127));
+                state[n] = v;
+            }
+        bool allOff = true; for (auto& kv : state) allOff = allOff && kv.second == 0;
+        expect (alt && allOff && state.size() == 4, "each trig CC pulses 127 then 0, and ends at 0");
+
+        // Note mode: notes 36-39, each with its note off, no trig CC.
+        auto notes = run ([] (OgdoadProcessor& p) { setParam (p, "trigMode", 1.0f); }, 10.0);
+        const int ons = count (notes, [] (auto& m) { return m.isNoteOn() && m.getNoteNumber() >= 36 && m.getNoteNumber() <= 39 && m.getVelocity() == 100; });
+        const int offs = count (notes, [] (auto& m) { return m.isNoteOff() && m.getNoteNumber() >= 36 && m.getNoteNumber() <= 39; });
+        expect (ons > 10 && ons == offs, "Note mode: trigger notes C1 to D#1, velocity 100, every one ended (" + juce::String (ons) + ")");
+        expect (count (notes, [] (auto& m) { return m.isController() && m.getControllerNumber() >= 102 && m.getControllerNumber() <= 105; }) == 0,
+                "Note mode: no trig CC");
+        auto both = run ([] (OgdoadProcessor& p) { setParam (p, "trigMode", 2.0f); }, 10.0);
+        expect (count (both, [] (auto& m) { return m.isNoteOn(); }) == count (both, [] (auto& m) { return m.isController() && m.getControllerNumber() >= 102 && m.getControllerValue() == 127; })
+                && count (both, [] (auto& m) { return m.isNoteOn(); }) > 10, "Both: a note with every CC pulse");
+
+        // The chain in the plugin: 2, 4 and 6 switched off, so everything comes out of trig 8.
+        auto chain = run ([] (OgdoadProcessor& p) { setParam (p, "trigUse1", 0.0f); setParam (p, "trigUse2", 0.0f); setParam (p, "trigUse3", 0.0f); }, 10.0);
+        const int only8 = count (chain, [] (auto& m) { return m.isController() && m.getControllerNumber() == 105 && m.getControllerValue() == 127; });
+        const int others = count (chain, [] (auto& m) { return m.isController() && m.getControllerNumber() >= 102 && m.getControllerNumber() <= 104; });
+        const int lfo2 = count (def, [] (auto& m) { return m.isController() && m.getControllerNumber() == 102 && m.getControllerValue() == 127; });
+        expect (others == 0 && only8 >= lfo2, "2, 4, 6 switched off: their triggers come out of trig 8 (" + juce::String (only8) + " pulses)");
+
+        // Ex off: exactly the 0.1.0 output.
+        auto off = run ([] (OgdoadProcessor& p) { setParam (p, "exOn", 0.0f); setParam (p, "trigMode", 2.0f); }, 5.0);
+        expect (! off.empty() && count (off, [] (auto& m) { return ! isLfoCc (m); }) == 0, "Ex off: only the eight LFOs");
+
+        // Note mode, then bypass in the middle of a note: the note still ends.
+        OgdoadProcessor p; p.prepareToPlay (48000.0, 512);
+        setParam (p, "trigMode", 1.0f);
+        std::vector<Msg> all;
+        for (int i = 0; i < 2000 && ! p.trigOn[0].load(); ++i) { auto o = runBlocks (p, 512.0 / 48000.0, 512); all.insert (all.end(), o.begin(), o.end()); }
+        auto b = runBlocks (p, 0.1, 512, {}, true);
+        all.insert (all.end(), b.begin(), b.end());
+        expect (count (all, [] (auto& m) { return m.isNoteOn(); }) == count (all, [] (auto& m) { return m.isNoteOff(); }) && ! all.empty(),
+                "bypassed during a trigger note: the note ends");
     }
 
     if (failures == 0) std::cout << "preview checks: " << checks << " checks passed" << std::endl;

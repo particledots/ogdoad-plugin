@@ -1,5 +1,6 @@
 # The Ogdoad engine. Plain C++17, no JUCE, no plugin code.
 # Later modulation plugins (tágh, cèis, cnōc ...) can reuse this folder, CcStream in particular.
+# ExOutputs.h holds the Ogdoad Ex numbering (fold, max / min, steps, trig chain).
 
 add_library(ogdoad_engine STATIC
     src/Engine.cpp

@@ -12,6 +12,10 @@ OgdoadProcessor::OgdoadProcessor()
     holdPedalParam  = apvts.getRawParameterValue (OgdoadParams::holdPedal);
     driftParam      = apvts.getRawParameterValue (OgdoadParams::drift);
     outChannelParam = apvts.getRawParameterValue (OgdoadParams::outChannel);
+    exOnParam       = apvts.getRawParameterValue (OgdoadParams::exOn);
+    for (int k = 0; k < ogdoad::kNumTrigs; ++k)
+        trigUseParam[(size_t) k] = apvts.getRawParameterValue (OgdoadParams::trigUse[k]);
+    trigModeParam   = apvts.getRawParameterValue (OgdoadParams::trigMode);
     inputs.reserve (4096);
     outBuffer.ensureSize (65536);
     engine.prepare (48000.0);
@@ -42,6 +46,10 @@ void OgdoadProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     s.hold      = holdParam->load() >= 0.5f;
     s.holdPedal = holdPedalParam->load() >= 0.5f;
     s.drift     = juce::roundToInt (driftParam->load());
+    s.exOn      = exOnParam->load() >= 0.5f;
+    for (int k = 0; k < ogdoad::kNumTrigs; ++k)
+        s.trigUse[k] = trigUseParam[(size_t) k]->load() >= 0.5f;
+    s.trigMode  = juce::roundToInt (trigModeParam->load());
     engine.setSettings (s);
 
     // Everything that comes in goes out unchanged; the mod wheel and the sustain pedal are also read.
@@ -65,12 +73,30 @@ void OgdoadProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Midi
     sink.channel = juce::jlimit (1, 16, juce::roundToInt (outChannelParam->load()));
     engine.render (numSamples, inputs.data(), (int) inputs.size(), sink);
     midi.swapWith (outBuffer);
+    publishToPanel();
+}
 
+void OgdoadProcessor::processBlockBypassed (juce::AudioBuffer<float>&, juce::MidiBuffer& midi)
+{
+    // Bypassed: incoming MIDI passes untouched and nothing new is added, except the end of a trigger that was on.
+    sink.out = &midi;
+    engine.closeTriggers (0, sink);
+}
+
+void OgdoadProcessor::publishToPanel()
+{
     for (int i = 0; i < ogdoad::kNumLanes; ++i)
     {
         lanes[(size_t) i].value.store ((float) engine.laneValue (i));
         lanes[(size_t) i].hz.store ((float) engine.laneHz (i));
         lanes[(size_t) i].phase.store ((float) engine.lanePhase (i));
+    }
+    for (int i = 0; i < ogdoad::kNumExSmooth; ++i)
+        exValues[(size_t) i].store ((float) engine.exValue (i));
+    for (int k = 0; k < ogdoad::kNumTrigs; ++k)
+    {
+        trigOn[(size_t) k].store (engine.trigOn (k));
+        trigPulses[(size_t) k].store ((unsigned) engine.trigPulses (k));
     }
     held.store (engine.isHeld());
     blocksDone.fetch_add (1);

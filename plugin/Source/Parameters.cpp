@@ -36,6 +36,13 @@ namespace OgdoadParams
         layout.add (std::make_unique<AudioParameterBool> (ParameterID { holdPedal, v }, "Pedal holds", false));
         layout.add (std::make_unique<AudioParameterChoice> (ParameterID { drift, v }, "Drift", driftNames, 1));
         layout.add (std::make_unique<AudioParameterInt> (ParameterID { outChannel, v }, "MIDI out channel", 1, 16, 16));
+
+        // Ogdoad Ex (added in 0.2.0, after the 0.1.0 parameters so saved projects keep their settings).
+        layout.add (std::make_unique<AudioParameterBool> (ParameterID { exOn, v }, "Ex on", true));
+        const char* trigNames[4] = { "Trig 2 in use", "Trig 4 in use", "Trig 6 in use", "Trig 8 in use" };
+        for (int k = 0; k < 4; ++k)
+            layout.add (std::make_unique<AudioParameterBool> (ParameterID { trigUse[k], v }, trigNames[k], true));
+        layout.add (std::make_unique<AudioParameterChoice> (ParameterID { trigMode, v }, "Trig out", trigModeNames, 0));
         return layout;
     }
 }
